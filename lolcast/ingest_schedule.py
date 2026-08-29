@@ -57,13 +57,7 @@ def fetch(
             "order_by": "MatchSchedule.DateTime_UTC ASC",
             "limit": limit,
         }
-        response = requests.get(
-            api, params=params, headers={"User-Agent": user_agent}, timeout=30
-        )
-        response.raise_for_status()
-        payload = response.json()
-        if "error" in payload:
-            raise RuntimeError(f"Leaguepedia API error: {payload['error']}")
+        payload = api_get(get_session(user_agent), api, params)
         _write_cache(cache_path, payload)
 
     rows = []
@@ -107,6 +101,7 @@ def fetch_results(
     results from the game-level history instead would mean reconstructing
     series boundaries, which is a needless source of quiet errors.
     """
+    session = get_session(user_agent)
     out: dict[str, int] = {}
     for start in range(0, len(match_ids), batch_size):
         chunk = match_ids[start:start + batch_size]
@@ -121,13 +116,7 @@ def fetch_results(
                      "AND MatchSchedule.Winner IS NOT NULL",
             "limit": batch_size,
         }
-        response = requests.get(
-            api, params=params, headers={"User-Agent": user_agent}, timeout=30
-        )
-        response.raise_for_status()
-        payload = response.json()
-        if "error" in payload:
-            raise RuntimeError(f"Leaguepedia API error: {payload['error']}")
+        payload = api_get(session, api, params)
 
         for item in payload.get("cargoquery", []):
             row = item.get("title", {})
@@ -144,6 +133,86 @@ def fetch_results(
             time.sleep(61)
 
     return out
+
+
+# ---------------------------------------------------------------------
+# Session and rate limiting
+# ---------------------------------------------------------------------
+# Anonymous callers get roughly one request per minute, counted per IP
+# address. CI runners share addresses with thousands of other jobs, so
+# that budget is usually gone before our first request. Logging in moves
+# the limit onto the account instead, which is the only reliable fix.
+
+
+def get_session(user_agent: str) -> requests.Session:
+    """A logged-in session if credentials are present, anonymous if not."""
+    session = requests.Session()
+    session.headers["User-Agent"] = user_agent
+
+    username = os.environ.get("WIKI_USERNAME")
+    password = os.environ.get("WIKI_PASSWORD")
+    if not username or not password:
+        print("  wiki: anonymous (set WIKI_USERNAME / WIKI_PASSWORD to raise "
+              "the rate limit)")
+        return session
+
+    api = os.environ.get("WIKI_API", "https://lol.fandom.com/api.php")
+    try:
+        token = session.get(api, params={
+            "action": "query", "meta": "tokens", "type": "login",
+            "format": "json",
+        }, timeout=30).json()["query"]["tokens"]["logintoken"]
+
+        result = session.post(api, data={
+            "action": "login", "lgname": username, "lgpassword": password,
+            "lgtoken": token, "format": "json",
+        }, timeout=30).json()
+
+        status = result.get("login", {}).get("result")
+        if status == "Success":
+            print(f"  wiki: logged in as {username}")
+        else:
+            print(f"  wiki: login refused ({status}); continuing anonymously")
+    except Exception as exc:                                    # noqa: BLE001
+        print(f"  wiki: login failed ({type(exc).__name__}); anonymous")
+    return session
+
+
+def api_get(
+    session: requests.Session,
+    api: str,
+    params: dict,
+    attempts: int = 6,
+    base_pause: float = 45.0,
+) -> dict:
+    """One API call, waiting and retrying when told we are going too fast.
+
+    Being throttled is normal here, not an error. Backing off and trying
+    again is the difference between a slow run and a failed one.
+    """
+    for attempt in range(1, attempts + 1):
+        response = session.get(api, params=params, timeout=60)
+        response.raise_for_status()
+        payload = response.json()
+
+        error = payload.get("error", {})
+        if error.get("code") == "ratelimited":
+            if attempt == attempts:
+                raise RuntimeError(
+                    "Leaguepedia kept rate-limiting us. Set WIKI_USERNAME and "
+                    "WIKI_PASSWORD (a Special:BotPasswords credential) as "
+                    "repository secrets to lift the limit."
+                )
+            wait = base_pause * attempt
+            print(f"    rate-limited, waiting {wait:.0f}s "
+                  f"(attempt {attempt}/{attempts})")
+            time.sleep(wait)
+            continue
+        if error:
+            raise RuntimeError(f"Leaguepedia API error: {error}")
+        return payload
+
+    raise RuntimeError("unreachable")
 
 
 GAME_FIELDS = [
@@ -185,11 +254,13 @@ def fetch_games(
     page_size: int = 500,
     max_pages: int = 40,
     pause: float = 61.0,
+    session: requests.Session | None = None,
 ) -> pd.DataFrame:
     """Finished games in a date window, shaped like the historical CSVs.
 
     Team1 is the blue side on Leaguepedia scoreboards.
     """
+    session = session or get_session(user_agent)
     rows, offset = [], 0
 
     for page in range(max_pages):
@@ -208,14 +279,7 @@ def fetch_games(
             "limit": page_size,
             "offset": offset,
         }
-        response = requests.get(
-            api, params=params, headers={"User-Agent": user_agent}, timeout=60
-        )
-        response.raise_for_status()
-        payload = response.json()
-        if "error" in payload:
-            raise RuntimeError(f"Leaguepedia API error: {payload['error']}")
-
+        payload = api_get(session, api, params)
         batch = payload.get("cargoquery", [])
         for item in batch:
             row = item.get("title", {})
@@ -263,6 +327,11 @@ def fetch_recent_games(
     now = datetime.now(timezone.utc)
     return fetch_games(api, user_agent, now - timedelta(days=days),
                        now + timedelta(days=1), league_prefixes, max_pages=8)
+
+
+def logged_in(user_agent: str) -> bool:
+    """True when wiki credentials are configured."""
+    return bool(os.environ.get("WIKI_USERNAME") and os.environ.get("WIKI_PASSWORD"))
 
 
 def _league_of(overview_page: str | None) -> str:
