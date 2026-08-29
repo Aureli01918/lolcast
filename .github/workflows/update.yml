@@ -1,0 +1,98 @@
+name: Refresh forecasts
+
+on:
+  schedule:
+    # 06:00 UTC daily. Oracle's Elixir updates overnight, so this picks up
+    # yesterday's results before most of the day's matches start.
+    - cron: "0 6 * * *"
+  workflow_dispatch:      # the Update button, and the Actions tab
+  push:
+    branches: [main]
+    paths:
+      - "config.yaml"     # re-run when you change settings or features
+      - "lolcast/**"
+
+# contents: write is needed to commit the ledger back. Without it the
+# record of what was forecast would be wiped on every run, and nothing
+# could ever be graded.
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: lolcast-refresh
+  cancel-in-progress: false   # never kill a run mid-ledger-write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      # Only the current year's CSV changes; cache the rest.
+      # First run only. Builds data/history.csv from Leaguepedia, which
+      # rate-limits anonymous callers to about one request a minute, so
+      # this takes the better part of an hour. It is then committed and
+      # never runs again.
+      - name: Build history (first run only)
+        if: hashFiles('data/history.csv') == ''
+        timeout-minutes: 180
+        run: python -m lolcast bootstrap
+
+      - name: Check we have history
+        run: |
+          if [ ! -s data/history.csv ]; then
+            echo "::error::data/history.csv is missing or empty. Re-run this"
+            echo "::error::workflow; the bootstrap step rebuilds it."
+            exit 1
+          fi
+          wc -l data/history.csv
+
+      # Grade first: today's forecast should benefit from yesterday's
+      # results, both in the ratings and in the self-calibration.
+      - name: Grade finished matches
+        run: python -m lolcast grade
+        continue-on-error: true    # a source outage must not block the build
+
+      - name: Build forecasts
+        run: python -m lolcast predict
+
+      - name: Show scores in the run log
+        run: |
+          python -m lolcast scoreboard
+          python -m lolcast backtest --by-league
+        continue-on-error: true
+
+      - name: Commit the ledger
+        run: |
+          git config user.name  "lolcast bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/ledger.csv data/history.csv
+          if git diff --staged --quiet; then
+            echo "No ledger changes."
+          else
+            git commit -m "Data: forecasts, results and history for $(date -u +%Y-%m-%d)"
+            git push
+          fi
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
