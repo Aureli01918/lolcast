@@ -1,10 +1,10 @@
 {
-  "generated": "2026-08-20T02:33:53.041742+00:00",
+  "generated": "2026-08-29T15:03:29.943339+00:00",
   "sample": true,
   "matches": [
     {
       "id": "sample-10",
-      "date": "2026-08-20T13:32:53.031495+00:00",
+      "date": "2026-08-30T02:02:29.933092+00:00",
       "event": "LEC 2026 Summer",
       "round": "Quarterfinals",
       "bestOf": 5,
@@ -21,10 +21,22 @@
         "games": 678
       },
       "gameProb": 0.557,
-      "seriesProb": 0.6006,
-      "seriesProbUncalibrated": 0.606,
+      "seriesProb": 0.6008,
+      "scorelines": {
+        "3-0": 0.1472,
+        "3-1": 0.2372,
+        "3-2": 0.2219,
+        "2-3": 0.1762,
+        "1-3": 0.1466,
+        "0-3": 0.0709
+      },
+      "sweep": {
+        "team1": 0.1472,
+        "team2": 0.0709
+      },
+      "seriesProbUncalibrated": 0.6063,
       "sources": {
-        "polymarket": 0.6038
+        "polymarket": 0.6041
       },
       "eloProb": 0.7023,
       "eloGameProb": 0.6115,
@@ -32,7 +44,7 @@
     },
     {
       "id": "sample-0",
-      "date": "2026-08-21T07:09:36.805791+00:00",
+      "date": "2026-08-30T19:39:13.707388+00:00",
       "event": "LPL 2026 Summer",
       "round": "Group Stage",
       "bestOf": 3,
@@ -49,8 +61,18 @@
         "games": 722
       },
       "gameProb": 0.4667,
-      "seriesProb": 0.4528,
-      "seriesProbUncalibrated": 0.4501,
+      "seriesProb": 0.4526,
+      "scorelines": {
+        "2-0": 0.1978,
+        "2-1": 0.2523,
+        "1-2": 0.2885,
+        "0-2": 0.2615
+      },
+      "sweep": {
+        "team1": 0.1978,
+        "team2": 0.2615
+      },
+      "seriesProbUncalibrated": 0.45,
       "sources": {
         "polymarket": null
       },
@@ -60,7 +82,7 @@
     },
     {
       "id": "sample-9",
-      "date": "2026-08-22T00:52:51.099848+00:00",
+      "date": "2026-08-31T13:22:28.001445+00:00",
       "event": "LTA North 2026 Split 3",
       "round": "Group Stage",
       "bestOf": 5,
@@ -77,10 +99,22 @@
         "games": 768
       },
       "gameProb": 0.2585,
-      "seriesProb": 0.124,
-      "seriesProbUncalibrated": 0.1127,
+      "seriesProb": 0.123,
+      "scorelines": {
+        "3-0": 0.012,
+        "3-1": 0.0367,
+        "3-2": 0.0629,
+        "2-3": 0.1826,
+        "1-3": 0.344,
+        "0-3": 0.3617
+      },
+      "sweep": {
+        "team1": 0.012,
+        "team2": 0.3617
+      },
+      "seriesProbUncalibrated": 0.1117,
       "sources": {
-        "polymarket": 0.1006
+        "polymarket": 0.0996
       },
       "eloProb": 0.1332,
       "eloGameProb": 0.2763,
@@ -88,7 +122,7 @@
     },
     {
       "id": "sample-4",
-      "date": "2026-08-22T01:12:44.673226+00:00",
+      "date": "2026-08-31T13:42:21.574823+00:00",
       "event": "LTA North 2026 Split 3",
       "round": "Quarterfinals",
       "bestOf": 3,
@@ -105,8 +139,18 @@
         "games": 760
       },
       "gameProb": 0.6686,
-      "seriesProb": 0.7324,
-      "seriesProbUncalibrated": 0.7433,
+      "seriesProb": 0.7331,
+      "scorelines": {
+        "2-0": 0.4182,
+        "2-1": 0.3257,
+        "1-2": 0.1605,
+        "0-2": 0.0956
+      },
+      "sweep": {
+        "team1": 0.4182,
+        "team2": 0.0956
+      },
+      "seriesProbUncalibrated": 0.7439,
       "sources": {
         "polymarket": null
       },
@@ -116,7 +160,7 @@
     },
     {
       "id": "sample-7",
-      "date": "2026-08-22T23:57:19.574876+00:00",
+      "date": "2026-09-01T12:26:56.476473+00:00",
       "event": "LPL 2026 Summer",
       "round": "Quarterfinals",
       "bestOf": 1,
@@ -134,6 +178,14 @@
       },
       "gameProb": 0.8443,
       "seriesProb": 0.8323,
+      "scorelines": {
+        "1-0": 0.8443,
+        "0-1": 0.1557
+      },
+      "sweep": {
+        "team1": 0.8443,
+        "team2": 0.1557
+      },
       "seriesProbUncalibrated": 0.8443,
       "sources": {
         "polymarket": null
@@ -144,7 +196,7 @@
     },
     {
       "id": "sample-5",
-      "date": "2026-08-23T22:37:22.536579+00:00",
+      "date": "2026-09-02T11:06:59.438176+00:00",
       "event": "LTA North 2026 Split 3",
       "round": "Quarterfinals",
       "bestOf": 3,
@@ -161,10 +213,20 @@
         "games": 722
       },
       "gameProb": 0.4667,
-      "seriesProb": 0.4528,
-      "seriesProbUncalibrated": 0.4501,
+      "seriesProb": 0.4526,
+      "scorelines": {
+        "2-0": 0.1978,
+        "2-1": 0.2523,
+        "1-2": 0.2885,
+        "0-2": 0.2615
+      },
+      "sweep": {
+        "team1": 0.1978,
+        "team2": 0.2615
+      },
+      "seriesProbUncalibrated": 0.45,
       "sources": {
-        "polymarket": 0.3799
+        "polymarket": 0.3798
       },
       "eloProb": 0.4425,
       "eloGameProb": 0.4616,
@@ -172,7 +234,7 @@
     },
     {
       "id": "sample-1",
-      "date": "2026-08-24T03:37:01.043234+00:00",
+      "date": "2026-09-02T16:06:37.944831+00:00",
       "event": "LCP 2026 Summer",
       "round": "Week 5",
       "bestOf": 3,
@@ -189,10 +251,20 @@
         "games": 760
       },
       "gameProb": 0.6686,
-      "seriesProb": 0.7324,
-      "seriesProbUncalibrated": 0.7433,
+      "seriesProb": 0.7331,
+      "scorelines": {
+        "2-0": 0.4182,
+        "2-1": 0.3257,
+        "1-2": 0.1605,
+        "0-2": 0.0956
+      },
+      "sweep": {
+        "team1": 0.4182,
+        "team2": 0.0956
+      },
+      "seriesProbUncalibrated": 0.7439,
       "sources": {
-        "polymarket": 0.6632
+        "polymarket": 0.6639
       },
       "eloProb": 0.7614,
       "eloGameProb": 0.6823,
@@ -200,7 +272,7 @@
     },
     {
       "id": "sample-3",
-      "date": "2026-08-24T15:08:51.048469+00:00",
+      "date": "2026-09-03T03:38:27.950066+00:00",
       "event": "LEC 2026 Summer",
       "round": "Group Stage",
       "bestOf": 3,
@@ -217,10 +289,20 @@
         "games": 788
       },
       "gameProb": 0.8124,
-      "seriesProb": 0.8971,
-      "seriesProbUncalibrated": 0.9076,
+      "seriesProb": 0.8983,
+      "scorelines": {
+        "2-0": 0.6251,
+        "2-1": 0.2837,
+        "1-2": 0.0641,
+        "0-2": 0.0271
+      },
+      "sweep": {
+        "team1": 0.6251,
+        "team2": 0.0271
+      },
+      "seriesProbUncalibrated": 0.9088,
       "sources": {
-        "polymarket": 0.8358
+        "polymarket": 0.837
       },
       "eloProb": 0.9159,
       "eloGameProb": 0.8217,
@@ -228,7 +310,7 @@
     },
     {
       "id": "sample-2",
-      "date": "2026-08-24T16:45:25.538479+00:00",
+      "date": "2026-09-03T05:15:02.440076+00:00",
       "event": "LEC 2026 Summer",
       "round": "Week 4",
       "bestOf": 1,
@@ -245,10 +327,18 @@
         "games": 793
       },
       "gameProb": 0.9889,
-      "seriesProb": 0.986,
-      "seriesProbUncalibrated": 0.9889,
+      "seriesProb": 0.9525,
+      "scorelines": {
+        "1-0": 0.9594,
+        "0-1": 0.0406
+      },
+      "sweep": {
+        "team1": 0.9594,
+        "team2": 0.0406
+      },
+      "seriesProbUncalibrated": 0.9594,
       "sources": {
-        "polymarket": 0.9314
+        "polymarket": 0.902
       },
       "eloProb": 0.9742,
       "eloGameProb": 0.9742,
@@ -256,7 +346,7 @@
     },
     {
       "id": "sample-6",
-      "date": "2026-08-24T20:36:57.555758+00:00",
+      "date": "2026-09-03T09:06:34.457355+00:00",
       "event": "LPL 2026 Summer",
       "round": "Week 4",
       "bestOf": 1,
@@ -274,6 +364,14 @@
       },
       "gameProb": 0.5785,
       "seriesProb": 0.5744,
+      "scorelines": {
+        "1-0": 0.5785,
+        "0-1": 0.4215
+      },
+      "sweep": {
+        "team1": 0.5785,
+        "team2": 0.4215
+      },
       "seriesProbUncalibrated": 0.5785,
       "sources": {
         "polymarket": 0.5955
@@ -284,7 +382,7 @@
     },
     {
       "id": "sample-8",
-      "date": "2026-08-25T00:34:47.403987+00:00",
+      "date": "2026-09-03T13:04:24.305584+00:00",
       "event": "LCK 2026 Summer",
       "round": "Group Stage",
       "bestOf": 1,
@@ -301,10 +399,18 @@
         "games": 771
       },
       "gameProb": 0.964,
-      "seriesProb": 0.9575,
-      "seriesProbUncalibrated": 0.964,
+      "seriesProb": 0.9389,
+      "scorelines": {
+        "1-0": 0.947,
+        "0-1": 0.053
+      },
+      "sweep": {
+        "team1": 0.947,
+        "team2": 0.053
+      },
+      "seriesProbUncalibrated": 0.947,
       "sources": {
-        "polymarket": 0.97
+        "polymarket": 0.9537
       },
       "eloProb": 0.9458,
       "eloGameProb": 0.9458,
@@ -330,6 +436,26 @@
     "matches": 420,
     "reason": "fitted on live results",
     "text": "calibration on: temperature 1.056 (overconfident) from 420 live matches"
+  },
+  "sweepLive": [
+    {
+      "source": "lolcast",
+      "logLoss": 0.412,
+      "brier": 0.128,
+      "matches": 180
+    },
+    {
+      "source": "elo",
+      "logLoss": 0.437,
+      "brier": 0.139,
+      "matches": 180
+    }
+  ],
+  "series": {
+    "sideChoiceRate": 0.94,
+    "sidePairs": 4120,
+    "repeatRate": 0.516,
+    "repeatPairs": 4120
   },
   "live": [
     {

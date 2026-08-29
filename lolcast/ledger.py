@@ -32,9 +32,16 @@ import pandas as pd
 
 COLUMNS = [
     "match_key", "kickoff_utc", "event", "best_of", "team1", "team2",
-    "source", "prob_team1", "captured_utc", "lead_hours", "liquidity",
-    "result", "graded_utc",
+    "source", "market", "prob_team1", "captured_utc", "lead_hours",
+    "liquidity", "result", "graded_utc",
 ]
+
+# What each row is predicting. "result" always means "the thing this row
+# predicted happened", so a sweep row is graded against the scoreline
+# rather than against who won.
+SERIES = "series"
+SWEEP_1 = "sweep_team1"
+SWEEP_2 = "sweep_team2"
 
 
 def load(path: str) -> pd.DataFrame:
@@ -48,6 +55,8 @@ def load(path: str) -> pd.DataFrame:
         df[col] = pd.to_datetime(df[col], utc=True, errors="coerce")
     for col in ("prob_team1", "lead_hours", "liquidity", "result"):
         df[col] = pd.to_numeric(df[col], errors="coerce")
+    # Ledgers written before markets existed hold series predictions only.
+    df["market"] = df["market"].fillna(SERIES)
     return df[COLUMNS]
 
 
@@ -71,6 +80,7 @@ def snapshot_rows(
     quotes: dict[str, float],
     captured: datetime,
     liquidity: dict[str, float] | None = None,
+    market: str = SERIES,
 ) -> list[dict]:
     """Build one row per source for a single upcoming match."""
     kickoff = pd.Timestamp(match["kickoff"])
@@ -88,6 +98,7 @@ def snapshot_rows(
             "team1": match["team1"],
             "team2": match["team2"],
             "source": name,
+            "market": market,
             "prob_team1": round(float(prob), 4),
             "captured_utc": pd.Timestamp(captured).isoformat(),
             "lead_hours": round(lead, 2),
@@ -114,27 +125,51 @@ def ungraded_keys(df: pd.DataFrame, before: datetime | None = None) -> list[str]
     return sorted(pending["match_key"].dropna().unique().tolist())
 
 
-def apply_results(path: str, results: dict[str, int]) -> int:
-    """Fill in `result` (1 = team1 won) for the given match keys.
+def apply_results(path: str, results: dict) -> int:
+    """Fill in `result` for the given matches, according to each row's market.
 
-    Rewrites the file in place. This is the only operation that edits
-    existing rows, and it only ever writes into empty result cells.
+    `results` maps match_key to either a bare 1/0 (team1 won) or a dict
+    with keys team1_won / team1_score / team2_score. The richer form is
+    what lets sweep rows be graded; without a scoreline they are left
+    ungraded rather than guessed at.
     """
     df = load(path)
     if df.empty or not results:
         return 0
 
-    mask = df["match_key"].isin(results) & df["result"].isna()
-    filled = int(mask.sum())
-    if filled == 0:
-        return 0
+    def outcome(key, market):
+        entry = results.get(key)
+        if entry is None:
+            return None
+        if not isinstance(entry, dict):
+            entry = {"team1_won": int(entry)}
+        won = entry.get("team1_won")
+        s1, s2 = entry.get("team1_score"), entry.get("team2_score")
+        if market == SERIES:
+            return None if won is None else int(won)
+        if s1 is None or s2 is None or won is None:
+            return None          # no scoreline, so a sweep cannot be judged
+        if market == SWEEP_1:
+            return int(bool(won) and int(s2) == 0)
+        if market == SWEEP_2:
+            return int((not bool(won)) and int(s1) == 0)
+        return None
 
     df["result"] = df["result"].astype("object")
     df["graded_utc"] = df["graded_utc"].astype("object")
-    df.loc[mask, "result"] = df.loc[mask, "match_key"].map(results)
-    df.loc[mask, "graded_utc"] = datetime.now(timezone.utc).isoformat()
+    stamp = datetime.now(timezone.utc).isoformat()
 
-    df.to_csv(path, index=False)
+    filled = 0
+    for idx, row in df[df["result"].isna()].iterrows():
+        value = outcome(row["match_key"], row["market"])
+        if value is None:
+            continue
+        df.at[idx, "result"] = value
+        df.at[idx, "graded_utc"] = stamp
+        filled += 1
+
+    if filled:
+        df.to_csv(path, index=False)
     return filled
 
 
@@ -181,8 +216,11 @@ def scoreboard(
     df: pd.DataFrame,
     min_lead_hours: float = 1.0,
     since_days: int | None = None,
+    market: str = SERIES,
 ) -> tuple[list[SourceScore], pd.DataFrame]:
-    """Score every source. Returns (scores, the common-subset frame)."""
+    """Score every source on one market. Returns (scores, common subset)."""
+    if not df.empty:
+        df = df[df["market"] == market]
     snaps = official_snapshots(df, min_lead_hours)
     graded = snaps[snaps["result"].notna()] if not snaps.empty else snaps
     if graded.empty:
@@ -224,8 +262,11 @@ def scoreboard(
 
 
 def graded_pairs(df: pd.DataFrame, source: str,
-                 min_lead_hours: float = 1.0) -> tuple[np.ndarray, np.ndarray]:
+                 min_lead_hours: float = 1.0,
+                 market: str = SERIES) -> tuple[np.ndarray, np.ndarray]:
     """(predictions, outcomes) for one source. Used to fit self-calibration."""
+    if not df.empty:
+        df = df[df["market"] == market]
     snaps = official_snapshots(df, min_lead_hours)
     if snaps.empty:
         return np.array([]), np.array([])

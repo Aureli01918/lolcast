@@ -93,8 +93,11 @@ def fetch_results(
     user_agent: str,
     match_ids: list[str],
     batch_size: int = 40,
-) -> dict[str, int]:
-    """Look up finished matches by MatchId. Returns {match_id: 1 if Team1 won}.
+) -> dict[str, dict]:
+    """Look up finished matches by MatchId.
+
+    Returns {match_id: {team1_won, team1_score, team2_score}}. The scores
+    matter: without them a 2-0 forecast cannot be graded, only the winner.
 
     Results come from the same table the schedule came from, so a series
     graded here lines up exactly with the series that was forecast. Pulling
@@ -124,9 +127,14 @@ def fetch_results(
             if not match_id or winner in (None, "", "0"):
                 continue
             try:
-                out[match_id] = 1 if int(winner) == 1 else 0
+                team1_won = 1 if int(winner) == 1 else 0
             except (TypeError, ValueError):
                 continue
+            out[match_id] = {
+                "team1_won": team1_won,
+                "team1_score": _as_int(row.get("Team1Score")),
+                "team2_score": _as_int(row.get("Team2Score")),
+            }
 
         # Respect the roughly one-request-per-minute unauthenticated limit.
         if start + batch_size < len(match_ids):
@@ -339,6 +347,13 @@ def _league_of(overview_page: str | None) -> str:
     if not overview_page:
         return "Unknown"
     return str(overview_page).split("/")[0].strip()
+
+
+def _as_int(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _read_cache(path: str, minutes: int):

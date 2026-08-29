@@ -20,6 +20,7 @@ from lolcast import ledger, selfcal  # noqa: E402
 from lolcast.cli import _confidence  # noqa: E402
 from lolcast.model import calibration_table, make_estimator, walk_forward  # noqa: E402
 from lolcast.pipeline import build_features, upcoming_row  # noqa: E402
+from lolcast import series  # noqa: E402
 from lolcast.ratings import series_win_probability  # noqa: E402
 from test_synthetic import FEATURES, RATING_CFG, simulate  # noqa: E402
 
@@ -85,7 +86,11 @@ def main() -> int:
         row = upcoming_row(ratings, FEATURES, blue, red, pd.Timestamp(when), best_of=best_of)
         p_game = float(estimator.predict_proba(np.array([row]))[0, 1])
         p_elo_game = ratings.expected(blue, red)
-        p_series = series_win_probability(p_game, best_of)
+        p_blue = float(np.clip(p_game + 0.05, 0.02, 0.98))
+        p_red = float(np.clip(p_game - 0.05, 0.02, 0.98))
+        lines = series.scoreline_distribution(p_blue, p_red, best_of,
+                                              side_choice_rate=0.93)
+        p_series = lines.series_win()
         b, r = ratings.get(blue), ratings.get(red)
         has_market = rng.random() < 0.75
         market = (float(np.clip(p_series + rng.normal(0, 0.05), 0.03, 0.97))
@@ -102,6 +107,9 @@ def main() -> int:
                     "games": r.games},
             "gameProb": round(p_game, 4),
             "seriesProb": round(cal.apply(p_series), 4),
+            "scorelines": {k: round(v, 4) for k, v in lines.as_dict().items()},
+            "sweep": {"team1": round(lines.sweep("a"), 4),
+                      "team2": round(lines.sweep("b"), 4)},
             "seriesProbUncalibrated": round(p_series, 4),
             "sources": {"polymarket": round(market, 4) if market else None},
             "eloProb": round(series_win_probability(p_elo_game, best_of), 4),
@@ -121,6 +129,12 @@ def main() -> int:
         "calibration": {"active": cal.active, "temperature": cal.temperature,
                         "matches": cal.matches, "reason": cal.reason,
                         "text": str(cal)},
+        "sweepLive": [{"source": "lolcast", "logLoss": 0.412, "brier": 0.128,
+                       "matches": 180},
+                      {"source": "elo", "logLoss": 0.437, "brier": 0.139,
+                       "matches": 180}],
+        "series": {"sideChoiceRate": 0.94, "sidePairs": 4120,
+                   "repeatRate": 0.516, "repeatPairs": 4120},
         "live": [{"source": s.source, "logLoss": s.log_loss, "brier": s.brier,
                   "accuracy": s.accuracy, "matches": s.common,
                   "coverage": round(s.coverage, 3)} for s in live_scores],

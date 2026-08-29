@@ -175,6 +175,50 @@ def test_calibration_declines_when_already_good():
     print(f"well-calibrated input left nearly alone (temperature {cal.temperature})")
 
 
+def test_scoreline_model():
+    from lolcast.series import scoreline_distribution
+    from lolcast.ratings import series_win_probability
+
+    for bo in (1, 3, 5):
+        d = scoreline_distribution(0.62, 0.55, bo)
+        assert abs(d.total() - 1) < 1e-9
+        # With no side gap it must reduce to the old independent-games maths.
+        for p in (0.35, 0.5, 0.7):
+            assert abs(scoreline_distribution(p, p, bo).series_win()
+                       - series_win_probability(p, bo)) < 1e-9
+
+    # The point of the whole exercise: a sweep is rarer than p squared,
+    # because winning game one gives the opponent blue for game two.
+    d = scoreline_distribution(0.70, 0.60, 3)
+    naive = (0.65) ** 2
+    assert d.sweep("a") < naive
+    print(f"scoreline model ok: P(2-0)={d.sweep('a'):.4f} vs naive {naive:.4f}")
+
+
+def test_sweep_grading():
+    import tempfile
+    from lolcast import ledger as L
+
+    match = {"key": "M1", "kickoff": NOW + timedelta(hours=24), "team1": "A",
+             "team2": "B", "event": "E", "best_of": 3}
+    cap = match["kickoff"] - timedelta(hours=5)
+    cases = [
+        ({"team1_won": 1, "team1_score": 2, "team2_score": 0}, (1, 1, 0)),
+        ({"team1_won": 1, "team1_score": 2, "team2_score": 1}, (1, 0, 0)),
+        ({"team1_won": 0, "team1_score": 0, "team2_score": 2}, (0, 0, 1)),
+    ]
+    for outcome, (series_r, s1, s2) in cases:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "l.csv")
+            for market in (L.SERIES, L.SWEEP_1, L.SWEEP_2):
+                L.append(path, L.snapshot_rows(match, {"lolcast": 0.5}, cap,
+                                               market=market))
+            L.apply_results(path, {"M1": outcome})
+            got = dict(zip(L.load(path)["market"], L.load(path)["result"]))
+            assert (got[L.SERIES], got[L.SWEEP_1], got[L.SWEEP_2]) == (series_r, s1, s2), got
+    print("sweep grading ok: judged on scoreline, not on who won")
+
+
 if __name__ == "__main__":
     test_name_matching()
     test_question_parsing()
@@ -184,4 +228,6 @@ if __name__ == "__main__":
     test_scoreboard_uses_common_subset()
     test_self_calibration()
     test_calibration_declines_when_already_good()
+    test_scoreline_model()
+    test_sweep_grading()
     print("\nAll checks passed.")

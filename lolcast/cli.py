@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 import yaml
 
-from . import ingest_oracle, ingest_schedule, ledger, selfcal, sources
+from . import ingest_oracle, ingest_schedule, ledger, selfcal, series, sources
 from .model import calibration_table, make_estimator, score, walk_forward
 from .pipeline import build_features, upcoming_row
 from .ratings import series_win_probability
@@ -201,6 +201,23 @@ def cmd_bootstrap(cfg: dict, args) -> None:
     Expect the better part of an hour. It only ever needs to run once --
     afterwards the file is committed and the daily top-up keeps it current.
     """
+    # Building five years takes roughly sixty requests. Anonymous callers
+    # get about one a minute *per IP*, and CI runners share IPs, so this
+    # reliably fails part-way through. Better to say so in five seconds
+    # than after fifteen minutes of backing off.
+    if not ingest_schedule.logged_in(cfg["data"]["user_agent"]):
+        raise SystemExit(
+            "Bootstrap needs a Leaguepedia login.\n\n"
+            "  1. Create a free account at lol.fandom.com\n"
+            "  2. Go to lol.fandom.com/wiki/Special:BotPasswords and make a\n"
+            "     credential with 'Basic rights' and 'High-volume editing'\n"
+            "  3. In this repository: Settings -> Secrets and variables ->\n"
+            "     Actions -> New repository secret. Add WIKI_USERNAME (the\n"
+            "     full name@label form) and WIKI_PASSWORD.\n\n"
+            "Then re-run this workflow. Secrets added while a run is in\n"
+            "progress do not apply to that run."
+        )
+
     out = history_path(cfg)
     existing = pd.read_csv(out) if os.path.exists(out) else pd.DataFrame()
     if not existing.empty and not args.force:
@@ -387,15 +404,43 @@ def cmd_predict(cfg: dict, args) -> None:
     # -- forecast, snapshot, assemble --------------------------------
     matches, ledger_rows = [], []
 
-    for match in resolved:
-        features = upcoming_row(ratings, enabled, match["team1"], match["team2"],
-                                match["kickoff"], best_of=match["best_of"])
-        p_game = float(estimator.predict_proba(np.array([features]))[0, 1])
-        p_raw = series_win_probability(p_game, match["best_of"])
-        p_series = cal.apply(p_raw)
+    # How reliably the previous game's loser ends up on blue, measured from
+    # this history rather than assumed from the rulebook.
+    side_rate, side_n = series.fit_side_choice(games)
+    repeat_rate, repeat_n = series.fit_game_correlation(games)
+    print(f"Side choice: loser takes blue {side_rate:.1%} of the time "
+          f"({side_n:,} game pairs)")
+    print(f"Game repeat: previous winner wins the next {repeat_rate:.1%} "
+          f"({repeat_n:,} pairs; 50% would mean no momentum)")
 
-        p_elo_game = ratings.expected(match["team1"], match["team2"])
-        p_elo = series_win_probability(p_elo_game, match["best_of"])
+    for match in resolved:
+        # Ask the model twice, once with each team on blue. The side is not
+        # known in advance, and the difference between the two is exactly
+        # what makes a sweep less likely than squaring one number.
+        f_blue = upcoming_row(ratings, enabled, match["team1"], match["team2"],
+                              match["kickoff"], best_of=match["best_of"])
+        f_red = upcoming_row(ratings, enabled, match["team2"], match["team1"],
+                             match["kickoff"], best_of=match["best_of"])
+        p_blue = float(estimator.predict_proba(np.array([f_blue]))[0, 1])
+        p_red = 1.0 - float(estimator.predict_proba(np.array([f_red]))[0, 1])
+        p_game = 0.5 * (p_blue + p_red)
+
+        lines = series.scoreline_distribution(
+            cal.apply(p_blue), cal.apply(p_red), match["best_of"],
+            side_choice_rate=side_rate,
+        )
+        p_series = lines.series_win()
+        p_raw = series.scoreline_distribution(
+            p_blue, p_red, match["best_of"], side_choice_rate=side_rate
+        ).series_win()
+
+        p_elo_blue = ratings.expected(match["team1"], match["team2"])
+        p_elo_red = 1.0 - ratings.expected(match["team2"], match["team1"])
+        p_elo_game = 0.5 * (p_elo_blue + p_elo_red)
+        elo_lines = series.scoreline_distribution(
+            p_elo_blue, p_elo_red, match["best_of"], side_choice_rate=side_rate
+        )
+        p_elo = elo_lines.series_win()
 
         others = {spec.name: quotes.get(spec.name, {}).get(match["key"])
                   for spec in specs}
@@ -411,10 +456,15 @@ def cmd_predict(cfg: dict, args) -> None:
             "red": {"name": match["display2"], "elo": round(state2.elo),
                     "form": round(state2.form(10), 2), "games": state2.games},
             "gameProb": round(p_game, 4),
+            "gameProbBlue": round(p_blue, 4),
+            "gameProbRed": round(p_red, 4),
             "seriesProb": round(p_series, 4),
             "seriesProbUncalibrated": round(p_raw, 4),
             "eloProb": round(p_elo, 4),
             "eloGameProb": round(p_elo_game, 4),
+            "scorelines": {k: round(v, 4) for k, v in lines.as_dict().items()},
+            "sweep": {"team1": round(lines.sweep("a"), 4),
+                      "team2": round(lines.sweep("b"), 4)},
             "sources": {k: (round(v, 4) if v is not None else None)
                         for k, v in others.items()},
             "confidence": _confidence(state1.games, state2.games),
@@ -427,14 +477,30 @@ def cmd_predict(cfg: dict, args) -> None:
             liquidity={k: liquidity.get(k, {}).get(match["key"]) for k in liquidity},
         ))
 
+        # Sweep forecasts are recorded separately. Even with perfect
+        # game-level calibration these can be systematically wrong, because
+        # they depend on how games within a series correlate -- and that
+        # error is invisible in series accuracy, where the winner is still
+        # called correctly.
+        if match["best_of"] > 1:
+            for market, prob, elo_prob in (
+                (ledger.SWEEP_1, lines.sweep("a"), elo_lines.sweep("a")),
+                (ledger.SWEEP_2, lines.sweep("b"), elo_lines.sweep("b")),
+            ):
+                ledger_rows.extend(ledger.snapshot_rows(
+                    match, {SELF: prob, BASELINE: elo_prob}, now, market=market,
+                ))
+
     written = ledger.append(ledger_path(cfg), ledger_rows)
 
     # -- scores for the dashboard ------------------------------------
     result, detail = walk_forward(X, y, index, cfg["backtest"], cfg["model"])
-    live_scores, _ = ledger.scoreboard(
-        ledger.load(ledger_path(cfg)), cfg_l.get("min_lead_hours", 1.0),
-        cfg_l.get("scoreboard_days"),
-    )
+    book = ledger.load(ledger_path(cfg))
+    live_scores, _ = ledger.scoreboard(book, cfg_l.get("min_lead_hours", 1.0),
+                                       cfg_l.get("scoreboard_days"))
+    sweep_scores, _ = ledger.scoreboard(book, cfg_l.get("min_lead_hours", 1.0),
+                                        cfg_l.get("scoreboard_days"),
+                                        market=ledger.SWEEP_1)
 
     output = {
         "generated": now.isoformat(),
@@ -449,6 +515,11 @@ def cmd_predict(cfg: dict, args) -> None:
         "live": [{"source": s.source, "logLoss": s.log_loss, "brier": s.brier,
                   "accuracy": s.accuracy, "matches": s.common,
                   "coverage": round(s.coverage, 3)} for s in live_scores],
+        "sweepLive": [{"source": s.source, "logLoss": s.log_loss,
+                       "brier": s.brier, "matches": s.common}
+                      for s in sweep_scores],
+        "series": {"sideChoiceRate": round(side_rate, 4), "sidePairs": side_n,
+                   "repeatRate": round(repeat_rate, 4), "repeatPairs": repeat_n},
         "model": {
             "features": enabled, "type": cfg["model"]["type"],
             "trainingGames": int(len(y)),

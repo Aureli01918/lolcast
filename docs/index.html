@@ -134,6 +134,36 @@ button.refresh:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .others .edge{color:var(--text)}
 .others .none{color:var(--muted);opacity:.7;padding:2px 0}
 
+/* ---- sweep line and the tap-to-open breakdown ---- */
+.sweepline{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin-top:9px;padding-top:9px;border-top:1px solid var(--line);
+  font-family:'Chivo Mono',monospace;font-size:12px;color:var(--muted);
+  width:100%;background:none;border-left:0;border-right:0;border-bottom:0;
+  cursor:pointer;text-align:left;font-weight:400;
+}
+.sweepline:hover{color:var(--text)}
+.sweepline:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.sweepline .vals{color:var(--text)}
+.sweepline .vals b{font-weight:600}
+.sweepline .vals .b1{color:var(--blue)}
+.sweepline .vals .r1{color:var(--red)}
+.sweepline .chev{transition:transform .2s}
+.match.open .sweepline .chev{transform:rotate(90deg)}
+
+.breakdown{display:none;margin-top:10px}
+.match.open .breakdown{display:block}
+.breakdown .row{
+  display:grid;grid-template-columns:52px 1fr 44px;align-items:center;
+  gap:8px;margin-bottom:5px;
+  font-family:'Chivo Mono',monospace;font-size:11px;
+}
+.breakdown .score{color:var(--muted)}
+.breakdown .track{height:7px;background:var(--panel-2);border-radius:2px;overflow:hidden}
+.breakdown .track span{display:block;height:100%;border-radius:2px}
+.breakdown .val{text-align:right}
+.breakdown .note{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5}
+
 /* ---- panels ---- */
 .panel{
   background:var(--panel);border:1px solid var(--line);
@@ -268,6 +298,35 @@ function matchCard(m, sources) {
   const noMarket = quotes.every(q => !q.external)
     ? '<span class="none">no market price</span>' : '';
 
+  // Sweep summary plus the full scoreline breakdown, collapsed by default.
+  let sweepBlock = '';
+  if (m.bestOf > 1 && m.scorelines) {
+    const need = Math.floor(m.bestOf / 2) + 1;
+    const s1 = m.sweep?.team1 ?? 0, s2 = m.sweep?.team2 ?? 0;
+    const rows = Object.entries(m.scorelines).map(([score, prob]) => {
+      const [a, b] = score.split('-').map(Number);
+      const colour = a > b ? 'var(--blue)' : 'var(--red)';
+      const label = a > b ? m.blue.name : m.red.name;
+      return `<div class="row" title="${label} ${score}">
+        <span class="score">${score}</span>
+        <span class="track"><span style="width:${(prob * 100).toFixed(1)}%;background:${colour}"></span></span>
+        <span class="val">${fmtPct(prob)}</span></div>`;
+    }).join('');
+
+    sweepBlock = `
+      <button class="sweepline" aria-expanded="false">
+        <span>${need}-0 sweep</span>
+        <span class="vals"><b class="b1">${fmtPct(s1)}</b> · <b class="r1">${fmtPct(s2)}</b>
+          <span class="chev">›</span></span>
+      </button>
+      <div class="breakdown">
+        ${rows}
+        <p class="note">Scorelines read left team first. A sweep is less
+        likely than squaring the per-game chance, because winning a game
+        hands the opponent blue side for the next one.</p>
+      </div>`;
+  }
+
   const el = document.createElement('article');
   el.className = 'match';
   el.innerHTML = `
@@ -291,7 +350,16 @@ function matchCard(m, sources) {
     <div class="bar"><div class="fill"></div><div class="band"></div><div class="split"></div></div>
     <div class="ticks">${quotes.map(q =>
       `<i data-p="${q.p}" style="background:${q.colour}"></i>`).join('')}</div>
-    <div class="others">${chips}${noMarket}</div>`;
+    <div class="others">${chips}${noMarket}</div>
+    ${sweepBlock}`;
+
+  const toggle = el.querySelector('.sweepline');
+  if (toggle) {
+    toggle.addEventListener('click', () => {
+      const open = el.classList.toggle('open');
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  }
 
   requestAnimationFrame(() => {
     el.querySelector('.fill').style.width = (p * 100) + '%';
@@ -337,6 +405,31 @@ function renderLive(live, selfName) {
     <thead><tr><th>Source</th><th>Games</th><th>Log loss</th>
     <th>Accuracy</th><th>Reach</th></tr></thead><tbody>${rows}</tbody>`;
   document.getElementById('livePanel').hidden = false;
+}
+
+function renderSweep(data) {
+  const rows = data.sweepLive || [];
+  const host = document.getElementById('sweepNote');
+  if (!host) return;
+  const s = data.series || {};
+  const bits = [];
+  if (s.sidePairs) {
+    bits.push(`Measured from ${s.sidePairs.toLocaleString()} game pairs in your
+      history: the previous game's loser starts on blue
+      ${fmtShare(s.sideChoiceRate)} of the time, and the previous winner takes
+      the next game ${fmtShare(s.repeatRate)} of the time (50% would mean no
+      momentum at all).`);
+  }
+  if (rows.length) {
+    const scored = rows.filter(r => r.logLoss != null)
+      .map(r => `${r.source} ${r.logLoss.toFixed(3)}`).join(', ');
+    if (scored) {
+      bits.push(`Sweep forecasts are scored separately (${scored}) because a
+        model can call every winner correctly and still misjudge how often
+        series end 2-0.`);
+    }
+  }
+  host.innerHTML = bits.join(' ');
 }
 
 function renderModel(data) {
@@ -451,6 +544,7 @@ function render(data) {
   renderKey(sources);
   renderMatches(data.matches, sources);
   renderLive(data.live, data.selfLabels?.model);
+  renderSweep(data);
   renderModel(data);
   setupRefresh(data);
 
