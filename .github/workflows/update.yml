@@ -37,6 +37,41 @@ jobs:
 
       - run: pip install -r requirements.txt
 
+      # Leaguepedia limits anonymous callers per IP address, and CI runners
+      # share addresses. Logging in moves the limit onto your account.
+      # Create these under Settings -> Secrets and variables -> Actions.
+      # This step reports whether they arrived, without revealing them:
+      # it prints lengths only, never the values.
+      - name: Check wiki credentials
+        env:
+          WIKI_USERNAME: ${{ secrets.WIKI_USERNAME }}
+          WIKI_PASSWORD: ${{ secrets.WIKI_PASSWORD }}
+        run: |
+          ok=1
+          if [ -z "$WIKI_USERNAME" ]; then
+            echo "WIKI_USERNAME: MISSING"; ok=0
+          else
+            echo "WIKI_USERNAME: present, ${#WIKI_USERNAME} characters"
+            case "$WIKI_USERNAME" in
+              *@*) echo "  contains '@' - correct format" ;;
+              *)   echo "  ::warning::no '@' found. Bot passwords need the"
+                   echo "  ::warning::full Name@label form, e.g. Marco@lolcast" ;;
+            esac
+          fi
+          if [ -z "$WIKI_PASSWORD" ]; then
+            echo "WIKI_PASSWORD: MISSING"; ok=0
+          else
+            echo "WIKI_PASSWORD: present, ${#WIKI_PASSWORD} characters"
+          fi
+          if [ "$ok" = "0" ]; then
+            echo "::error::Credentials did not reach the job. Check they are"
+            echo "::error::Repository secrets (not Variables, not Environment"
+            echo "::error::secrets) and named exactly WIKI_USERNAME and"
+            echo "::error::WIKI_PASSWORD. Secrets added mid-run do not apply"
+            echo "::error::to that run."
+          fi
+
+
       # Only the current year's CSV changes; cache the rest.
       # First run only. Builds data/history.csv from Leaguepedia, which
       # rate-limits anonymous callers to about one request a minute, so
@@ -44,7 +79,10 @@ jobs:
       # never runs again.
       - name: Build history (first run only)
         if: hashFiles('data/history.csv') == ''
-        timeout-minutes: 180
+        timeout-minutes: 300
+        env:
+          WIKI_USERNAME: ${{ secrets.WIKI_USERNAME }}
+          WIKI_PASSWORD: ${{ secrets.WIKI_PASSWORD }}
         run: python -m lolcast bootstrap
 
       - name: Check we have history
@@ -59,10 +97,16 @@ jobs:
       # Grade first: today's forecast should benefit from yesterday's
       # results, both in the ratings and in the self-calibration.
       - name: Grade finished matches
+        env:
+          WIKI_USERNAME: ${{ secrets.WIKI_USERNAME }}
+          WIKI_PASSWORD: ${{ secrets.WIKI_PASSWORD }}
         run: python -m lolcast grade
         continue-on-error: true    # a source outage must not block the build
 
       - name: Build forecasts
+        env:
+          WIKI_USERNAME: ${{ secrets.WIKI_USERNAME }}
+          WIKI_PASSWORD: ${{ secrets.WIKI_PASSWORD }}
         run: python -m lolcast predict
 
       - name: Show scores in the run log
