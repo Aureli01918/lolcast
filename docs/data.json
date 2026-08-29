@@ -1,0 +1,414 @@
+{
+  "generated": "2026-08-20T02:33:53.041742+00:00",
+  "sample": true,
+  "matches": [
+    {
+      "id": "sample-10",
+      "date": "2026-08-20T13:32:53.031495+00:00",
+      "event": "LEC 2026 Summer",
+      "round": "Quarterfinals",
+      "bestOf": 5,
+      "blue": {
+        "name": "Hanwha Life",
+        "elo": 1328,
+        "form": 0.4,
+        "games": 797
+      },
+      "red": {
+        "name": "Team Vitality",
+        "elo": 1298,
+        "form": 0.1,
+        "games": 678
+      },
+      "gameProb": 0.557,
+      "seriesProb": 0.6006,
+      "seriesProbUncalibrated": 0.606,
+      "sources": {
+        "polymarket": 0.6038
+      },
+      "eloProb": 0.7023,
+      "eloGameProb": 0.6115,
+      "confidence": "high"
+    },
+    {
+      "id": "sample-0",
+      "date": "2026-08-21T07:09:36.805791+00:00",
+      "event": "LPL 2026 Summer",
+      "round": "Group Stage",
+      "bestOf": 3,
+      "blue": {
+        "name": "Team Vitality",
+        "elo": 1298,
+        "form": 0.1,
+        "games": 678
+      },
+      "red": {
+        "name": "Dplus KIA",
+        "elo": 1374,
+        "form": 0.3,
+        "games": 722
+      },
+      "gameProb": 0.4667,
+      "seriesProb": 0.4528,
+      "seriesProbUncalibrated": 0.4501,
+      "sources": {
+        "polymarket": null
+      },
+      "eloProb": 0.4425,
+      "eloGameProb": 0.4616,
+      "confidence": "high"
+    },
+    {
+      "id": "sample-9",
+      "date": "2026-08-22T00:52:51.099848+00:00",
+      "event": "LTA North 2026 Split 3",
+      "round": "Group Stage",
+      "bestOf": 5,
+      "blue": {
+        "name": "CTBC Flying Oyster",
+        "elo": 1244,
+        "form": 0.3,
+        "games": 788
+      },
+      "red": {
+        "name": "PSG Talon",
+        "elo": 1461,
+        "form": 0.4,
+        "games": 768
+      },
+      "gameProb": 0.2585,
+      "seriesProb": 0.124,
+      "seriesProbUncalibrated": 0.1127,
+      "sources": {
+        "polymarket": 0.1006
+      },
+      "eloProb": 0.1332,
+      "eloGameProb": 0.2763,
+      "confidence": "high"
+    },
+    {
+      "id": "sample-4",
+      "date": "2026-08-22T01:12:44.673226+00:00",
+      "event": "LTA North 2026 Split 3",
+      "round": "Quarterfinals",
+      "bestOf": 3,
+      "blue": {
+        "name": "Dplus KIA",
+        "elo": 1374,
+        "form": 0.3,
+        "games": 722
+      },
+      "red": {
+        "name": "100 Thieves",
+        "elo": 1301,
+        "form": 0.4,
+        "games": 760
+      },
+      "gameProb": 0.6686,
+      "seriesProb": 0.7324,
+      "seriesProbUncalibrated": 0.7433,
+      "sources": {
+        "polymarket": null
+      },
+      "eloProb": 0.7431,
+      "eloGameProb": 0.6684,
+      "confidence": "high"
+    },
+    {
+      "id": "sample-7",
+      "date": "2026-08-22T23:57:19.574876+00:00",
+      "event": "LPL 2026 Summer",
+      "round": "Quarterfinals",
+      "bestOf": 1,
+      "blue": {
+        "name": "Gen.G",
+        "elo": 1592,
+        "form": 0.5,
+        "games": 734
+      },
+      "red": {
+        "name": "Top Esports",
+        "elo": 1316,
+        "form": 0.4,
+        "games": 795
+      },
+      "gameProb": 0.8443,
+      "seriesProb": 0.8323,
+      "seriesProbUncalibrated": 0.8443,
+      "sources": {
+        "polymarket": null
+      },
+      "eloProb": 0.8667,
+      "eloGameProb": 0.8667,
+      "confidence": "high"
+    },
+    {
+      "id": "sample-5",
+      "date": "2026-08-23T22:37:22.536579+00:00",
+      "event": "LTA North 2026 Split 3",
+      "round": "Quarterfinals",
+      "bestOf": 3,
+      "blue": {
+        "name": "Team Vitality",
+        "elo": 1298,
+        "form": 0.1,
+        "games": 678
+      },
+      "red": {
+        "name": "Dplus KIA",
+        "elo": 1374,
+        "form": 0.3,
+        "games": 722
+      },
+      "gameProb": 0.4667,
+      "seriesProb": 0.4528,
+      "seriesProbUncalibrated": 0.4501,
+      "sources": {
+        "polymarket": 0.3799
+      },
+      "eloProb": 0.4425,
+      "eloGameProb": 0.4616,
+      "confidence": "high"
+    },
+    {
+      "id": "sample-1",
+      "date": "2026-08-24T03:37:01.043234+00:00",
+      "event": "LCP 2026 Summer",
+      "round": "Week 5",
+      "bestOf": 3,
+      "blue": {
+        "name": "Team Liquid",
+        "elo": 1385,
+        "form": 0.4,
+        "games": 714
+      },
+      "red": {
+        "name": "100 Thieves",
+        "elo": 1301,
+        "form": 0.4,
+        "games": 760
+      },
+      "gameProb": 0.6686,
+      "seriesProb": 0.7324,
+      "seriesProbUncalibrated": 0.7433,
+      "sources": {
+        "polymarket": 0.6632
+      },
+      "eloProb": 0.7614,
+      "eloGameProb": 0.6823,
+      "confidence": "high"
+    },
+    {
+      "id": "sample-3",
+      "date": "2026-08-24T15:08:51.048469+00:00",
+      "event": "LEC 2026 Summer",
+      "round": "Group Stage",
+      "bestOf": 3,
+      "blue": {
+        "name": "PSG Talon",
+        "elo": 1461,
+        "form": 0.4,
+        "games": 768
+      },
+      "red": {
+        "name": "CTBC Flying Oyster",
+        "elo": 1244,
+        "form": 0.3,
+        "games": 788
+      },
+      "gameProb": 0.8124,
+      "seriesProb": 0.8971,
+      "seriesProbUncalibrated": 0.9076,
+      "sources": {
+        "polymarket": 0.8358
+      },
+      "eloProb": 0.9159,
+      "eloGameProb": 0.8217,
+      "confidence": "high"
+    },
+    {
+      "id": "sample-2",
+      "date": "2026-08-24T16:45:25.538479+00:00",
+      "event": "LEC 2026 Summer",
+      "round": "Week 4",
+      "bestOf": 1,
+      "blue": {
+        "name": "Weibo Gaming",
+        "elo": 2037,
+        "form": 1.0,
+        "games": 696
+      },
+      "red": {
+        "name": "JD Gaming",
+        "elo": 1455,
+        "form": 0.6,
+        "games": 793
+      },
+      "gameProb": 0.9889,
+      "seriesProb": 0.986,
+      "seriesProbUncalibrated": 0.9889,
+      "sources": {
+        "polymarket": 0.9314
+      },
+      "eloProb": 0.9742,
+      "eloGameProb": 0.9742,
+      "confidence": "high"
+    },
+    {
+      "id": "sample-6",
+      "date": "2026-08-24T20:36:57.555758+00:00",
+      "event": "LPL 2026 Summer",
+      "round": "Week 4",
+      "bestOf": 1,
+      "blue": {
+        "name": "Team Vitality",
+        "elo": 1298,
+        "form": 0.1,
+        "games": 678
+      },
+      "red": {
+        "name": "Nongshim RedForce",
+        "elo": 1290,
+        "form": 0.2,
+        "games": 758
+      },
+      "gameProb": 0.5785,
+      "seriesProb": 0.5744,
+      "seriesProbUncalibrated": 0.5785,
+      "sources": {
+        "polymarket": 0.5955
+      },
+      "eloProb": 0.5812,
+      "eloGameProb": 0.5812,
+      "confidence": "high"
+    },
+    {
+      "id": "sample-8",
+      "date": "2026-08-25T00:34:47.403987+00:00",
+      "event": "LCK 2026 Summer",
+      "round": "Group Stage",
+      "bestOf": 1,
+      "blue": {
+        "name": "T1",
+        "elo": 1902,
+        "form": 0.8,
+        "games": 743
+      },
+      "red": {
+        "name": "G2 Esports",
+        "elo": 1454,
+        "form": 0.3,
+        "games": 771
+      },
+      "gameProb": 0.964,
+      "seriesProb": 0.9575,
+      "seriesProbUncalibrated": 0.964,
+      "sources": {
+        "polymarket": 0.97
+      },
+      "eloProb": 0.9458,
+      "eloGameProb": 0.9458,
+      "confidence": "high"
+    }
+  ],
+  "unmatchedTeams": [],
+  "sources": [
+    {
+      "name": "polymarket",
+      "label": "Polymarket",
+      "colour": "#5FD3A6",
+      "error": null
+    }
+  ],
+  "selfLabels": {
+    "model": "lolcast",
+    "baseline": "elo"
+  },
+  "calibration": {
+    "active": true,
+    "temperature": 1.0555,
+    "matches": 420,
+    "reason": "fitted on live results",
+    "text": "calibration on: temperature 1.056 (overconfident) from 420 live matches"
+  },
+  "live": [
+    {
+      "source": "polymarket",
+      "logLoss": 0.6048300751881525,
+      "brier": 0.2091020756013746,
+      "accuracy": 0.6838487972508591,
+      "matches": 291,
+      "coverage": 0.693
+    },
+    {
+      "source": "elo",
+      "logLoss": 0.6266039748056857,
+      "brier": 0.21889205137457046,
+      "accuracy": 0.6701030927835051,
+      "matches": 291,
+      "coverage": 1.0
+    },
+    {
+      "source": "lolcast",
+      "logLoss": 0.6342405454088721,
+      "brier": 0.2193747680412371,
+      "accuracy": 0.6426116838487973,
+      "matches": 291,
+      "coverage": 1.0
+    }
+  ],
+  "refresh": {
+    "proxyUrl": "",
+    "actionsUrl": "https://github.com/you/lolcast/actions"
+  },
+  "model": {
+    "features": [
+      "elo_diff",
+      "is_blue_side",
+      "form_diff_10",
+      "rest_days_diff",
+      "h2h_recent",
+      "games_played_diff",
+      "cross_region"
+    ],
+    "type": "logistic",
+    "trainingGames": 9000,
+    "logLoss": 0.5536,
+    "brier": 0.1864,
+    "accuracy": 0.7107,
+    "skill": 0.2013,
+    "backtestGames": 6080,
+    "calibration": [
+      {
+        "bucket": "0%-20%",
+        "games": 847,
+        "predicted": 0.11429201497909595,
+        "actual": 0.12396694214876033
+      },
+      {
+        "bucket": "20%-40%",
+        "games": 1069,
+        "predicted": 0.2979742020873697,
+        "actual": 0.33489242282507015
+      },
+      {
+        "bucket": "40%-60%",
+        "games": 1439,
+        "predicted": 0.5083890006384009,
+        "actual": 0.5114662960389159
+      },
+      {
+        "bucket": "60%-80%",
+        "games": 1344,
+        "predicted": 0.6955653857479595,
+        "actual": 0.6860119047619048
+      },
+      {
+        "bucket": "80%-100%",
+        "games": 1381,
+        "predicted": 0.8923091484216079,
+        "actual": 0.8551774076755974
+      }
+    ]
+  }
+}

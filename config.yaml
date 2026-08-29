@@ -1,0 +1,138 @@
+# ============================================================
+#  lolcast configuration
+#  This file is the main thing you edit. Code changes are only
+#  needed when you add a brand-new feature (see features.py).
+# ============================================================
+
+data:
+  # Oracle's Elixir publishes yearly CSVs to a public Google Drive folder.
+  # Verify the current folder ID at https://oracleselixir.com/tools/downloads
+  oracle_drive_folder: "1gLSw0RLjBbtaNy0dgnGQDAZOHIgCe-HH"
+  # Built once by `python -m lolcast bootstrap`, then committed and kept
+  # current by the daily top-up. This is the primary history source.
+  history_path: "data/history.csv"
+  # Optional: Oracle's Elixir CSVs add per-game stats for the optional
+  # features. Not required, and their download is unreliable from CI.
+  raw_dir: "data/raw"
+  cache_dir: "data/cache"
+  years: [2022, 2023, 2024, 2025, 2026]
+
+  # Leaguepedia Cargo API. Rate-limited to ~1 request/min when
+  # unauthenticated, so responses are cached for schedule_cache_minutes.
+  leaguepedia_api: "https://lol.fandom.com/api.php"
+  user_agent: "lolcast/0.1 (personal match tracker; contact: marcoarauseob@gmail.com)"
+  schedule_cache_minutes: 60
+  # Days of recent results to pull from Leaguepedia on every run, to keep
+  # ratings current between bulk CSV refreshes. 0 turns it off.
+  topup_days: 45
+
+# Which leagues to rate and display. Names must match Oracle's Elixir
+# `league` column. Add or remove freely.
+leagues:
+  track: ["LCK", "LPL", "LEC", "LTA N", "LTA S", "LCP", "MSI", "WLDs", "FST"]
+  # Games used to build ratings, even if not displayed. Wider = better
+  # calibration for teams that cross regions.
+  rate: ["LCK", "LPL", "LEC", "LTA N", "LTA S", "LCP", "MSI", "WLDs", "FST",
+         "EM", "LFL", "PRM", "NLC", "LCKC", "LDL"]
+  # Leaguepedia names its pages differently from Oracle's Elixir. These are
+  # matched as page prefixes, e.g. "LCK/2026 Season/Summer Season".
+  # Filtering here rather than after download is what keeps the one-time
+  # bootstrap to about an hour instead of five.
+  leaguepedia_prefixes:
+    - "LCK"
+    - "LPL"
+    - "LEC"
+    - "LTA North"
+    - "LTA South"
+    - "LCP"
+    - "LCS"
+    - "CBLOL"
+    - "MSI"
+    - "Worlds"
+    - "First Stand"
+
+ratings:
+  initial: 1500.0
+  k: 24.0              # update size per game
+  scale: 400.0         # Elo logistic scale
+  # Pull ratings toward the mean at the start of each split. Roster churn
+  # means last split's rating is only partly informative. 0 = no reset.
+  split_regression: 0.25
+  # Days of inactivity that counts as a new split.
+  split_gap_days: 45
+  # Extra Elo points for blue side. "auto" fits it from history.
+  side_advantage: auto
+
+features:
+  # Toggle features on and off here. Every name must be registered in
+  # lolcast/features.py. Order does not matter.
+  enabled:
+    - elo_diff
+    - is_blue_side
+    - form_diff_10
+    - rest_days_diff
+    - h2h_recent
+    - games_played_diff
+    - cross_region
+  # Registered but off by default — flip on and re-run backtest to see
+  # whether they actually help.
+  #  - gold_diff_15_form
+  #  - roster_stability
+  #  - patch_recency
+
+model:
+  type: "logistic"        # logistic | gradient_boosting
+  calibration: "isotonic" # isotonic | sigmoid | none
+  l2: 1.0
+
+backtest:
+  train_start: "2022-01-01"
+  test_start: "2025-01-01"
+  refit_every_days: 30
+  min_train_games: 2000
+
+# ---------------------------------------------------------------
+#  Comparison sources
+# ---------------------------------------------------------------
+sources:
+  enabled:
+    - polymarket
+    # - bookmaker      # needs an API key; see lolcast/sources/bookmaker.py
+
+  polymarket:
+    # Ignore markets with almost no money in them. Thin markets are
+    # noise, and scoring against noise makes you look better than you are.
+    min_liquidity: 500
+
+# ---------------------------------------------------------------
+#  Prediction ledger: the record of what was forecast, before results
+# ---------------------------------------------------------------
+ledger:
+  path: "data/ledger.csv"
+  # Only quotes taken at least this many hours before kickoff count for
+  # scoring. Keeps the comparison fair when market prices move late.
+  min_lead_hours: 1.0
+  # Rolling window for the dashboard scoreboard. null = all time.
+  scoreboard_days: 180
+
+# ---------------------------------------------------------------
+#  Self-calibration: correct our confidence using our own live record
+# ---------------------------------------------------------------
+self_calibration:
+  enabled: true
+  min_matches: 300      # do nothing below this; a bad month is not a signal
+  shrink_at: 1000       # sample size at which the correction is fully trusted
+  max_temperature: 3.0
+  min_lead_hours: 1.0
+
+dashboard:
+  horizon_days: 7
+  title: "lolcast"
+  timezone: "local"       # rendered client-side
+  refresh:
+    # Leave blank for the no-setup version: the Update button opens the
+    # GitHub Actions page so you can start a rebuild in two taps.
+    # Set this to a Cloudflare Worker URL (see worker/README) for a real
+    # one-tap button. Instructions are in the project README.
+    proxyUrl: ""
+    actionsUrl: "https://github.com/Aureli01918/lolcast/actions/workflows/update.yml"
