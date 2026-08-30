@@ -14,6 +14,7 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
+import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -219,6 +220,160 @@ def test_sweep_grading():
     print("sweep grading ok: judged on scoreline, not on who won")
 
 
+def test_roster_audit():
+    """The audit must find a planted effect and refuse to invent one."""
+    from lolcast import rosters
+
+    teams = [f"T{i}" for i in range(10)]
+    pool = {t: [f"{t}_p{j}" for j in range(8)] for t in teams}
+
+    def world(noise, seed, n_games=3600):
+        rng = np.random.default_rng(seed)
+        lineup = {t: set(pool[t][:5]) for t in teams}
+        unstable = {t: -1 for t in teams}
+        prows, detail = [], []
+        day = pd.Timestamp("2025-01-01")
+        for g in range(n_games):
+            day += pd.Timedelta(hours=8)
+            a, b = rng.choice(teams, 2, replace=False)
+            for t in (a, b):
+                if rng.random() < 0.06:
+                    out = rng.choice(sorted(lineup[t]))
+                    inn = rng.choice([q for q in pool[t] if q not in lineup[t]])
+                    lineup[t] = (lineup[t] - {out}) | {inn}
+                    unstable[t] = g + 3
+                for q in sorted(lineup[t]):
+                    prows.append({"player": q, "team": t, "gameid": f"g{g}",
+                                  "date": day, "event": "LCK/2025", "role": None})
+            true_p = float(rng.uniform(0.3, 0.8))
+            hit = g <= unstable[a] or g <= unstable[b]
+            ap = float(np.clip(true_p + (rng.normal(0, noise) if hit else 0),
+                               0.02, 0.98))
+            detail.append({"date": day, "blue": a, "red": b,
+                           "prediction": true_p, "actual": int(rng.random() < ap)})
+        return pd.DataFrame(prows), pd.DataFrame(detail)
+
+    def run(noise, seed):
+        prows, detail = world(noise, seed)
+        lineups = rosters.lineups_from_rows(prows)
+        annotated = rosters.annotate_changes(lineups)
+        report = rosters.churn_report(lineups, annotated)
+        flagged = rosters.flag_recent_change(detail, annotated, 3)
+        return report, rosters.compare_groups(flagged)
+
+    # A large planted disruption: the audit resolves roughly 0.025 log
+    # loss and up at these sample sizes, so the test uses a clear one.
+    report, big = run(1.2, 1)
+    assert 0.03 < report.change_rate < 0.12, report.change_rate
+    assert big["significant"] and big["difference"] > 0, big
+
+    # No planted effect: must not be called significant.
+    _, none = run(0.0, 2)
+    assert not none["significant"], none
+    print(f"roster audit ok: detects a real effect ({big['difference']:+.4f}), "
+          f"declines a fake one ({none['difference']:+.4f}, interval spans zero)")
+
+
+def test_lineup_parsing():
+    """Incomplete lineups must be dropped, not read as substitutions."""
+    from lolcast import rosters
+
+    rows = pd.DataFrame([
+        *[{"player": f"p{i}", "team": "A", "gameid": "g1",
+           "date": pd.Timestamp("2026-01-01")} for i in range(5)],
+        # Only four players recorded: a wiki gap, not a roster change.
+        *[{"player": f"p{i}", "team": "A", "gameid": "g2",
+           "date": pd.Timestamp("2026-01-02")} for i in range(4)],
+        *[{"player": f"p{i}", "team": "A", "gameid": "g3",
+           "date": pd.Timestamp("2026-01-03")} for i in range(5)],
+    ])
+    lineups = rosters.lineups_from_rows(rows)
+    assert list(lineups["size"]) == [5, 4, 5]
+    annotated = rosters.annotate_changes(lineups)
+    assert len(annotated) == 2, "incomplete game was not dropped"
+    assert not annotated["changed"].any(), "gap was misread as a substitution"
+    print("lineup parsing ok: incomplete records dropped, not counted as changes")
+
+
+def test_live_calibration_and_divergence():
+    """Divergence must stay quiet on thin data and speak up on real decay."""
+    import tempfile
+    from lolcast import ledger as L
+
+    def build(path, n, noise, seed=0):
+        rng = np.random.default_rng(seed)
+        for i in range(n):
+            kick = NOW - timedelta(days=n - i)
+            true_p = float(rng.uniform(0.25, 0.85))
+            said = float(np.clip(true_p + rng.normal(0, noise), 0.02, 0.98))
+            L.append(path, L.snapshot_rows(
+                {"key": f"M{i}", "kickoff": kick, "team1": "A", "team2": "B",
+                 "event": "E", "best_of": 3},
+                {"lolcast": said}, kick - timedelta(hours=5)))
+            L.apply_results(path, {f"M{i}": {
+                "team1_won": int(rng.random() < true_p),
+                "team1_score": 2, "team2_score": 1}})
+
+    expected = {40: "waiting", 500: "consistent"}
+    for n, status in expected.items():
+        with tempfile.TemporaryDirectory() as t:
+            path = os.path.join(t, "l.csv")
+            build(path, n, 0.05)
+            d = L.divergence(L.load(path), "lolcast", backtest_log_loss=0.60)
+            assert d["status"] == status, (n, d)
+
+    with tempfile.TemporaryDirectory() as t:
+        path = os.path.join(t, "l.csv")
+        build(path, 500, 0.30)
+        book = L.load(path)
+        d = L.divergence(book, "lolcast", backtest_log_loss=0.60)
+        assert d["status"] == "worse" and d["gap"] > 0.03, d
+        rows = L.live_calibration(book, "lolcast", bins=5)
+        assert rows and all(0 <= r["actual"] <= 1 for r in rows)
+        assert sum(r["games"] for r in rows) == 500
+    print("live calibration ok: silent under 100 matches, flags real decay")
+
+
+def test_finished_report():
+    """Finished matches must report the scoreline, not just the winner."""
+    import tempfile
+    from lolcast import ledger as L
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "l.csv")
+        cases = [("M0", 2, 0, 1), ("M1", 1, 2, 0), ("M2", 3, 2, 1)]
+        for i, (key, s1, s2, won) in enumerate(cases):
+            kick = NOW - timedelta(days=i + 1)
+            L.append(path, L.snapshot_rows(
+                {"key": key, "kickoff": kick, "team1": "Gen.G", "team2": "T1",
+                 "event": "LCK", "best_of": 3},
+                {"lolcast": 0.64}, kick - timedelta(hours=5)))
+            L.apply_results(path, {key: {"team1_won": won, "team1_score": s1,
+                                         "team2_score": s2}})
+
+        rows = L.finished(L.load(path), "lolcast", days=365)
+        assert len(rows) == 3, rows
+        by_id = {r["id"]: r for r in rows}
+        assert (by_id["M0"]["team1Score"], by_id["M0"]["team2Score"]) == (2, 0)
+        assert by_id["M1"]["team1Won"] == 0
+        # Newest first, so a followed match reads as a feed.
+        assert [r["id"] for r in rows] == ["M0", "M1", "M2"]
+        assert all(r["forecast"] == 0.64 for r in rows)
+
+    # A win recorded without a scoreline must not invent one.
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "l.csv")
+        kick = NOW - timedelta(days=1)
+        L.append(path, L.snapshot_rows(
+            {"key": "X", "kickoff": kick, "team1": "A", "team2": "B",
+             "event": "E", "best_of": 3}, {"lolcast": 0.5},
+            kick - timedelta(hours=5)))
+        L.apply_results(path, {"X": 1})
+        row = L.finished(L.load(path), "lolcast", days=365)[0]
+        assert row["team1Score"] is None and row["team1Won"] == 1, row
+    print("finished report ok: scorelines kept, never fabricated")
+
+
 if __name__ == "__main__":
     test_name_matching()
     test_question_parsing()
@@ -230,4 +385,8 @@ if __name__ == "__main__":
     test_calibration_declines_when_already_good()
     test_scoreline_model()
     test_sweep_grading()
+    test_lineup_parsing()
+    test_roster_audit()
+    test_live_calibration_and_divergence()
+    test_finished_report()
     print("\nAll checks passed.")

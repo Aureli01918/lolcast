@@ -33,7 +33,7 @@ import pandas as pd
 COLUMNS = [
     "match_key", "kickoff_utc", "event", "best_of", "team1", "team2",
     "source", "market", "prob_team1", "captured_utc", "lead_hours",
-    "liquidity", "result", "graded_utc",
+    "liquidity", "result", "team1_score", "team2_score", "graded_utc",
 ]
 
 # What each row is predicting. "result" always means "the thing this row
@@ -52,8 +52,15 @@ def load(path: str) -> pd.DataFrame:
         if col not in df.columns:
             df[col] = None
     for col in ("kickoff_utc", "captured_utc", "graded_utc"):
-        df[col] = pd.to_datetime(df[col], utc=True, errors="coerce")
-    for col in ("prob_team1", "lead_hours", "liquidity", "result"):
+        # Rows appended directly use "2026-08-19T00:00:00+00:00" while rows
+        # rewritten during grading use a space instead of the T. Without
+        # format="mixed" pandas infers one shape and turns the other into
+        # NaT, which silently drops matches from the lead-time rule and the
+        # results feed. Nothing errors; rows just vanish.
+        df[col] = pd.to_datetime(df[col], utc=True, errors="coerce",
+                                 format="mixed")
+    for col in ("prob_team1", "lead_hours", "liquidity", "result",
+                "team1_score", "team2_score"):
         df[col] = pd.to_numeric(df[col], errors="coerce")
     # Ledgers written before markets existed hold series predictions only.
     df["market"] = df["market"].fillna(SERIES)
@@ -104,6 +111,8 @@ def snapshot_rows(
             "lead_hours": round(lead, 2),
             "liquidity": liquidity.get(name, ""),
             "result": "",
+            "team1_score": "",
+            "team2_score": "",
             "graded_utc": "",
         }
         for name, prob in quotes.items()
@@ -155,8 +164,8 @@ def apply_results(path: str, results: dict) -> int:
             return int((not bool(won)) and int(s1) == 0)
         return None
 
-    df["result"] = df["result"].astype("object")
-    df["graded_utc"] = df["graded_utc"].astype("object")
+    for col in ("result", "team1_score", "team2_score", "graded_utc"):
+        df[col] = df[col].astype("object")
     stamp = datetime.now(timezone.utc).isoformat()
 
     filled = 0
@@ -166,6 +175,12 @@ def apply_results(path: str, results: dict) -> int:
             continue
         df.at[idx, "result"] = value
         df.at[idx, "graded_utc"] = stamp
+        # Keep the scoreline, not just who won. Without it a finished match
+        # can only be reported as a win, never as 2-0 or 2-1.
+        entry = results.get(row["match_key"])
+        if isinstance(entry, dict):
+            df.at[idx, "team1_score"] = entry.get("team1_score")
+            df.at[idx, "team2_score"] = entry.get("team2_score")
         filled += 1
 
     if filled:
@@ -259,6 +274,131 @@ def scoreboard(
 
     scores.sort(key=lambda s: (s.log_loss is None, s.log_loss))
     return scores, graded[graded["match_key"].isin(complete)]
+
+
+def finished(
+    df: pd.DataFrame,
+    source: str,
+    days: int = 45,
+    min_lead_hours: float = 1.0,
+) -> list[dict]:
+    """Recently graded matches, with the scoreline and what we forecast.
+
+    Used by the dashboard to report on matches the person is following once
+    they have been played. Ordered newest first.
+    """
+    if df.empty:
+        return []
+    rows = df[(df["source"] == source) & (df["market"] == SERIES)
+              & df["result"].notna()]
+    if rows.empty:
+        return []
+
+    cutoff = pd.Timestamp(datetime.now(timezone.utc)) - pd.Timedelta(days=days)
+    rows = rows[rows["kickoff_utc"] >= cutoff]
+    if rows.empty:
+        return []
+
+    # One row per match: the forecast that counted, on the same lead-time
+    # rule the scoreboard uses.
+    eligible = rows[rows["lead_hours"] >= min_lead_hours]
+    if eligible.empty:
+        eligible = rows
+    picked = eligible.sort_values("lead_hours").groupby("match_key", as_index=False).first()
+
+    out = []
+    for row in picked.sort_values("kickoff_utc", ascending=False).to_dict("records"):
+        s1, s2 = row.get("team1_score"), row.get("team2_score")
+        out.append({
+            "id": str(row["match_key"]),
+            "date": pd.Timestamp(row["kickoff_utc"]).isoformat(),
+            "event": row.get("event") or "",
+            "bestOf": int(row["best_of"]) if pd.notna(row.get("best_of")) else None,
+            "team1": row["team1"], "team2": row["team2"],
+            "team1Score": None if pd.isna(s1) else int(s1),
+            "team2Score": None if pd.isna(s2) else int(s2),
+            "team1Won": int(row["result"]),
+            "forecast": float(row["prob_team1"]),
+        })
+    return out
+
+
+def live_calibration(
+    df: pd.DataFrame,
+    source: str,
+    bins: int = 5,
+    min_lead_hours: float = 1.0,
+    market: str = SERIES,
+) -> list[dict]:
+    """Said-versus-happened, from real graded forecasts.
+
+    The backtest version of this table is a re-enactment: the model is
+    scored on games drawn from the same era it was tuned against. This one
+    is scored on forecasts that were published before anyone knew the
+    result, which is the harder and more honest test.
+    """
+    p, y = graded_pairs(df, source, min_lead_hours, market)
+    if len(p) == 0:
+        return []
+
+    edges = np.linspace(0, 1, bins + 1)
+    idx = np.clip(np.digitize(p, edges) - 1, 0, bins - 1)
+    rows = []
+    for b in range(bins):
+        mask = idx == b
+        if not mask.any():
+            continue
+        rows.append({
+            "bucket": f"{edges[b]:.0%}-{edges[b + 1]:.0%}",
+            "games": int(mask.sum()),
+            "predicted": float(p[mask].mean()),
+            "actual": float(y[mask].mean()),
+        })
+    return rows
+
+
+def divergence(
+    df: pd.DataFrame,
+    source: str,
+    backtest_log_loss: float,
+    min_lead_hours: float = 1.0,
+    min_matches: int = 100,
+    margin: float = 0.03,
+) -> dict:
+    """Compare live performance against what the backtest promised.
+
+    A model that looks good on history and worse in the wild is overfitted,
+    and the fix is fewer variables rather than more. This is the check that
+    catches that, so it is worth surfacing before it is worth acting on.
+
+    `margin` is deliberately generous. Live samples are small and noisy,
+    and crying overfitting on forty matches would be worse than silence.
+    """
+    p, y = graded_pairs(df, source, min_lead_hours)
+    n = len(p)
+    if n < min_matches:
+        return {"status": "waiting", "matches": n, "needed": min_matches}
+
+    p = np.clip(p, 1e-6, 1 - 1e-6)
+    live = float(-np.mean(y * np.log(p) + (1 - y) * np.log(1 - p)))
+    gap = live - backtest_log_loss
+
+    if gap > margin:
+        status = "worse"
+    elif gap < -margin:
+        status = "better"
+    else:
+        status = "consistent"
+
+    # Which direction the miscalibration runs, if any.
+    bias = float(np.mean(p) - np.mean(y))
+    return {
+        "status": status, "matches": n,
+        "liveLogLoss": round(live, 4),
+        "backtestLogLoss": round(backtest_log_loss, 4),
+        "gap": round(gap, 4),
+        "bias": round(bias, 4),
+    }
 
 
 def graded_pairs(df: pd.DataFrame, source: str,

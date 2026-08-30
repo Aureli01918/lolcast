@@ -20,7 +20,8 @@ import numpy as np
 import pandas as pd
 import yaml
 
-from . import ingest_oracle, ingest_schedule, ledger, selfcal, series, sources
+from . import (ingest_oracle, ingest_schedule, ledger, rosters, selfcal,
+               series, sources)
 from .model import calibration_table, make_estimator, score, walk_forward
 from .pipeline import build_features, upcoming_row
 from .ratings import series_win_probability
@@ -283,6 +284,64 @@ def cmd_ablation(cfg: dict, args) -> None:
     print(table.to_string(index=False))
 
 
+def cmd_roster_audit(cfg: dict, args) -> None:
+    """Measure lineup churn, and whether it degrades our forecasts.
+
+    Deliberately a separate command on a narrow window. Player rows are
+    ten times the volume of game rows, so this is something you run once
+    to make a decision, not something the daily job does.
+    """
+    audit = cfg.get("audit", {})
+    window_years = int(args.years or audit.get("years", 2))
+    prefixes = audit.get("leaguepedia_prefixes") or \
+        cfg["leagues"].get("leaguepedia_prefixes")
+    recent_window = int(audit.get("recent_games", 3))
+
+    end = datetime.now(timezone.utc)
+    start = end.replace(year=end.year - window_years)
+    print(f"Auditing {start:%Y-%m-%d} to {end:%Y-%m-%d}")
+    print(f"Leagues: {', '.join(prefixes)}\n")
+
+    rows = ingest_schedule.fetch_player_rows(
+        cfg["data"]["leaguepedia_api"], cfg["data"]["user_agent"],
+        start, end, prefixes, max_pages=int(audit.get("max_pages", 60)),
+    )
+    print(f"\n{len(rows):,} player rows")
+    if rows.empty:
+        print("Nothing returned. Check the league prefixes and the window.")
+        return
+
+    lineups = rosters.lineups_from_rows(rows)
+    annotated = rosters.annotate_changes(lineups)
+    report = rosters.churn_report(lineups, annotated)
+    print(f"\n--- Lineup churn ---\n{report}")
+
+    print("\n--- Effect on forecasts ---")
+    games = load_games(cfg)
+    X, y, index, _ = _built(cfg, games)
+    _, detail = walk_forward(X, y, index, cfg["backtest"], cfg["model"])
+
+    flagged = rosters.flag_recent_change(detail, annotated, recent_window)
+    matched = int(flagged["matched"].sum())
+    print(f"Backtested games with lineup data on both sides: {matched:,} "
+          f"of {len(flagged):,}")
+
+    comparison = rosters.compare_groups(flagged)
+    if comparison.get("enough_data"):
+        print(f"  within {recent_window} games of a change: "
+              f"{comparison['changed_n']:,} games, "
+              f"log loss {comparison['changed_log_loss']:.4f}")
+        print(f"  stable lineups:                 "
+              f"{comparison['stable_n']:,} games, "
+              f"log loss {comparison['stable_log_loss']:.4f}")
+        print(f"  difference {comparison['difference']:+.4f} "
+              f"(95% interval {comparison['ci_low']:+.4f} to "
+              f"{comparison['ci_high']:+.4f})")
+
+    print(f"\n--- Verdict ---\n"
+          f"{rosters.verdict(report, comparison, recent_window)}")
+
+
 def cmd_grade(cfg: dict, args) -> None:
     path = ledger_path(cfg)
     pending = ledger.ungraded_keys(ledger.load(path))
@@ -318,6 +377,14 @@ def cmd_scoreboard(cfg: dict, args) -> None:
     for s in scores:
         print(f"  {s}")
     print(f"\n{selfcal.fit_from_ledger(book, SELF, cfg.get('self_calibration', {}))}")
+
+    rows = ledger.live_calibration(book, SELF, 5, cfg_l.get("min_lead_hours", 1.0))
+    if rows:
+        print("\nSaid versus happened, on live forecasts:")
+        print(f"  {'said':<12}{'games':>7}{'predicted':>11}{'happened':>10}")
+        for r in rows:
+            print(f"  {r['bucket']:<12}{r['games']:>7}{r['predicted']:>10.0%}"
+                  f"{r['actual']:>10.0%}")
 
 
 def cmd_predict(cfg: dict, args) -> None:
@@ -512,6 +579,15 @@ def cmd_predict(cfg: dict, args) -> None:
         "calibration": {"active": cal.active, "temperature": cal.temperature,
                         "matches": cal.matches, "reason": cal.reason,
                         "text": str(cal)},
+        # Matches already played, so anything the person is following can
+        # still report its result after it drops out of the schedule.
+        "recent": ledger.finished(
+            book, SELF, int(cfg["dashboard"].get("results_days", 45)),
+            cfg_l.get("min_lead_hours", 1.0)),
+        "liveCalibration": ledger.live_calibration(
+            book, SELF, bins=5, min_lead_hours=cfg_l.get("min_lead_hours", 1.0)),
+        "divergence": ledger.divergence(
+            book, SELF, result.log_loss, cfg_l.get("min_lead_hours", 1.0)),
         "live": [{"source": s.source, "logLoss": s.log_loss, "brier": s.brier,
                   "accuracy": s.accuracy, "matches": s.common,
                   "coverage": round(s.coverage, 3)} for s in live_scores],
@@ -563,6 +639,7 @@ COMMANDS = {
     "ablation": cmd_ablation,
     "grade": cmd_grade,
     "predict": cmd_predict,
+    "roster-audit": cmd_roster_audit,
     "scoreboard": cmd_scoreboard,
 }
 
@@ -575,6 +652,8 @@ def main(argv=None) -> int:
                         help="backtest only: break scores down per league")
     parser.add_argument("--days", type=int, default=None,
                         help="scoreboard only: limit to the last N days")
+    parser.add_argument("--years", type=int, default=None,
+                        help="roster-audit only: how many years back to look")
     parser.add_argument("--force", action="store_true",
                         help="bootstrap only: rebuild even if history exists")
     args = parser.parse_args(argv)

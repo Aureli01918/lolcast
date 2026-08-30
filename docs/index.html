@@ -80,6 +80,44 @@ button.refresh:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   text-transform:uppercase;letter-spacing:.06em;font-weight:600;
 }
 .meta .when{font-family:'Chivo Mono',monospace;flex-shrink:0}
+.star{
+  flex-shrink:0;background:none;border:0;padding:0 0 0 2px;cursor:pointer;
+  color:var(--muted);font-size:15px;line-height:1;
+}
+.star:hover{color:var(--gold)}
+.star[aria-pressed="true"]{color:var(--gold)}
+.star:focus-visible{outline:2px solid var(--gold);outline-offset:3px;border-radius:3px}
+
+.following{border:1px solid var(--gold);border-radius:var(--radius);padding:12px;margin-bottom:8px}
+.following > h2{
+  font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--gold);margin-bottom:10px;
+}
+.following .match{background:var(--panel-2)}
+.following .empty-note{font-size:12px;color:var(--muted)}
+
+.result{
+  background:var(--panel-2);border:1px solid var(--line);
+  border-radius:var(--radius);padding:12px 13px;margin-bottom:10px;
+}
+.result .score{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin-top:6px;
+}
+.result .side{min-width:0;font-size:15px;font-weight:600;letter-spacing:-.01em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.result .side.lost{color:var(--muted);font-weight:400}
+.result .nums{
+  font-family:'Chivo Mono',monospace;font-size:20px;font-weight:600;flex-shrink:0;
+}
+.result .verdict{
+  margin-top:8px;padding-top:8px;border-top:1px solid var(--line);
+  font-family:'Chivo Mono',monospace;font-size:11px;color:var(--muted);
+  display:flex;justify-content:space-between;gap:10px;
+}
+.result .hit{color:#5FD3A6}
+.result .miss{color:var(--red)}
+.result .gone{font-size:12px;color:var(--muted)}
 .meta .bo{
   flex-shrink:0;border:1px solid var(--line);border-radius:3px;
   padding:1px 5px;font-family:'Chivo Mono',monospace;
@@ -211,6 +249,7 @@ code{
   <div class="key" id="key"></div>
 </header>
 
+<section class="following" id="following" hidden></section>
 <main id="matches"></main>
 
 <section class="panel" id="livePanel" hidden>
@@ -228,6 +267,12 @@ code{
   <h3>Model</h3>
   <div class="chips" id="featureChips"></div>
   <table id="calibration"></table>
+  <p class="legend" id="calNote"></p>
+  <div id="liveCalWrap" hidden>
+    <h3 style="margin-top:16px">Live calibration</h3>
+    <table id="liveCal"></table>
+    <p class="legend" id="divergence"></p>
+  </div>
   <p class="legend" id="calStatus"></p>
   <p class="legend">
     <b>Reading a bar.</b> The split is the forecast. Coloured ticks are the
@@ -243,6 +288,26 @@ code{
 const BAND = { low: 0.10, medium: 0.06, high: 0.03 };
 const ELO_COLOUR = '#C9A227';
 let DATA = null;
+
+// Flags live in this browser only. That is deliberate: it needs no
+// backend and no account. The trade-off is that your phone and laptop
+// keep separate lists.
+const FLAGS_KEY = 'lolcast:following';
+function loadFlags() {
+  try { return new Set(JSON.parse(localStorage.getItem(FLAGS_KEY) || '[]')); }
+  catch { return new Set(); }        // private mode, or corrupted value
+}
+function saveFlags(set) {
+  try { localStorage.setItem(FLAGS_KEY, JSON.stringify([...set])); }
+  catch { /* storage unavailable; flags last for this session only */ }
+}
+let FLAGS = loadFlags();
+
+function toggleFlag(id) {
+  FLAGS.has(id) ? FLAGS.delete(id) : FLAGS.add(id);
+  saveFlags(FLAGS);
+  render(DATA);
+}
 
 // Never show 0% or 100%. The model is not certain and should not look it.
 const fmtPct = p => {
@@ -334,6 +399,10 @@ function matchCard(m, sources) {
       <span class="event">${m.event ?? 'Match'}${round}</span>
       <span class="bo">Bo${m.bestOf}</span>
       <span class="when">${time}</span>
+      <button class="star" aria-pressed="${FLAGS.has(m.id) ? 'true' : 'false'}"
+        aria-label="${FLAGS.has(m.id) ? 'Stop following' : 'Follow this match'}"
+        title="${FLAGS.has(m.id) ? 'Stop following' : 'Follow this match'}"
+      >${FLAGS.has(m.id) ? '★' : '☆'}</button>
     </div>
     <div class="teams">
       <div class="team b">
@@ -352,6 +421,8 @@ function matchCard(m, sources) {
       `<i data-p="${q.p}" style="background:${q.colour}"></i>`).join('')}</div>
     <div class="others">${chips}${noMarket}</div>
     ${sweepBlock}`;
+
+  el.querySelector('.star').addEventListener('click', () => toggleFlag(m.id));
 
   const toggle = el.querySelector('.sweepline');
   if (toggle) {
@@ -444,6 +515,40 @@ function renderModel(data) {
     <thead><tr><th>Said</th><th>Games</th><th>Predicted</th><th>Happened</th></tr></thead>
     <tbody>${rows}</tbody>`;
 
+  document.getElementById('calNote').innerHTML =
+    `<b>Backtest.</b> The model replaying past games it wasn't trained on.
+     Compare the last two columns: if it said 70% and 70% happened, the
+     number means what it says.`;
+
+  // Live calibration: the same table, but from forecasts published before
+  // anyone knew the result. Harder test, and the one that counts.
+  const liveRows = data.liveCalibration || [];
+  if (liveRows.length) {
+    document.getElementById('liveCal').innerHTML = `
+      <thead><tr><th>Said</th><th>Games</th><th>Predicted</th><th>Happened</th></tr></thead>
+      <tbody>${liveRows.map(r => `<tr><td>${r.bucket}</td><td>${r.games}</td>
+        <td>${fmtPct(r.predicted)}</td><td>${fmtPct(r.actual)}</td></tr>`).join('')}</tbody>`;
+
+    const d = data.divergence || {};
+    const note = {
+      waiting: `Only ${d.matches ?? 0} graded forecasts so far. This table
+        becomes meaningful past ${d.needed ?? 100}; below that the swings are
+        mostly luck.`,
+      consistent: `<b>Holding up.</b> Live log loss ${d.liveLogLoss} against
+        ${d.backtestLogLoss} in the backtest. The model performs in the wild
+        about as well as history promised.`,
+      worse: `<b>Worse than the backtest</b> — live log loss ${d.liveLogLoss}
+        against ${d.backtestLogLoss}, a gap of ${d.gap}. That pattern usually
+        means overfitting, and the fix is fewer variables rather than more.
+        Run the ablation before adding anything.`,
+      better: `Live log loss ${d.liveLogLoss} is better than the backtest's
+        ${d.backtestLogLoss}. Pleasant, but usually means recent matches were
+        easier than average rather than that the model improved.`,
+    }[d.status] || '';
+    document.getElementById('divergence').innerHTML = note;
+    document.getElementById('liveCalWrap').hidden = false;
+  }
+
   const cal = data.calibration;
   document.getElementById('calStatus').innerHTML = cal?.active
     ? `<b>Self-correction on.</b> Confidence is being adjusted from
@@ -454,9 +559,83 @@ function renderModel(data) {
   document.getElementById('modelPanel').hidden = false;
 }
 
+function resultCard(r) {
+  const t1won = r.team1Won === 1;
+  const known = r.team1Score != null && r.team2Score != null;
+  const score = known ? `${r.team1Score}\u2013${r.team2Score}`
+                      : (t1won ? 'won' : 'lost');
+  const called = (r.forecast > 0.5) === t1won;
+  const shown = t1won ? r.forecast : 1 - r.forecast;
+  const when = new Date(r.date).toLocaleDateString(undefined,
+    { month: 'short', day: 'numeric' });
+
+  const el = document.createElement('article');
+  el.className = 'result';
+  el.innerHTML = `
+    <div class="meta">
+      <span class="event">${r.event || 'Match'}</span>
+      ${r.bestOf ? `<span class="bo">Bo${r.bestOf}</span>` : ''}
+      <span class="when">${when}</span>
+      <button class="star" aria-pressed="true" aria-label="Stop following"
+        title="Stop following">\u2605</button>
+    </div>
+    <div class="score">
+      <span class="side ${t1won ? '' : 'lost'}">${r.team1}</span>
+      <span class="nums">${score}</span>
+      <span class="side ${t1won ? 'lost' : ''}">${r.team2}</span>
+    </div>
+    <div class="verdict">
+      <span>we said ${fmtPct(shown)} ${t1won ? r.team1 : r.team2}</span>
+      <span class="${called ? 'hit' : 'miss'}">${called ? 'called it' : 'missed'}</span>
+    </div>`;
+  el.querySelector('.star').addEventListener('click', () => toggleFlag(r.id));
+  return el;
+}
+
+function renderFollowing(data, sources) {
+  const host = document.getElementById('following');
+  host.innerHTML = '';
+  if (!FLAGS.size) { host.hidden = true; return; }
+
+  const upcoming = (data.matches || []).filter(m => FLAGS.has(m.id));
+  const played = (data.recent || []).filter(r => FLAGS.has(String(r.id)));
+  const seen = new Set([...upcoming.map(m => m.id), ...played.map(r => String(r.id))]);
+  // A followed match older than the results window is no longer in the
+  // feed. Say so rather than dropping it silently, and let it be cleared.
+  const missing = [...FLAGS].filter(id => !seen.has(id));
+
+  host.hidden = false;
+  const heading = document.createElement('h2');
+  heading.textContent = `Following (${FLAGS.size})`;
+  host.appendChild(heading);
+
+  // Upcoming first: what you are waiting on matters more than what already
+  // happened. Results sit below, newest first.
+  upcoming.forEach(m => host.appendChild(matchCard(m, sources)));
+  played.forEach(r => host.appendChild(resultCard(r)));
+
+  if (missing.length) {
+    const note = document.createElement('p');
+    note.className = 'gone';
+    const plural = missing.length === 1 ? 'match is' : 'matches are';
+    note.innerHTML = `${missing.length} followed ${plural} older than the
+      results window, so the result is no longer available.
+      <button class="star" style="font-size:12px;color:var(--gold)"
+      id="clearGone">Clear</button>`;
+    host.appendChild(note);
+    note.querySelector('#clearGone').addEventListener('click', () => {
+      missing.forEach(id => FLAGS.delete(id));
+      saveFlags(FLAGS);
+      render(DATA);
+    });
+  }
+}
+
 function renderMatches(matches, sources) {
   const host = document.getElementById('matches');
   host.innerHTML = '';
+  // Followed matches are shown above; don't repeat them here.
+  matches = matches.filter(m => !FLAGS.has(m.id));
   if (!matches.length) {
     host.innerHTML = `<div class="empty"><b>No matches scheduled</b>
       Nothing in the next few days. Check back after the next schedule drop.</div>`;
@@ -542,6 +721,7 @@ function render(data) {
   const sources = (data.sources || []).filter(s => !s.error);
   renderHealth(data.model);
   renderKey(sources);
+  renderFollowing(data, sources);
   renderMatches(data.matches, sources);
   renderLive(data.live, data.selfLabels?.model);
   renderSweep(data);

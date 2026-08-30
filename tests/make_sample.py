@@ -135,6 +135,18 @@ def main() -> int:
                        "matches": 180}],
         "series": {"sideChoiceRate": 0.94, "sidePairs": 4120,
                    "repeatRate": 0.516, "repeatPairs": 4120},
+        "recent": [
+            {"id": f"past-{i}", "date": (now - timedelta(days=i + 1)).isoformat(),
+             "event": ev, "bestOf": bo, "team1": a, "team2": b,
+             "team1Score": s1, "team2Score": s2, "team1Won": int(s1 > s2),
+             "forecast": f}
+            for i, (a, b, s1, s2, f, bo, ev) in enumerate([
+                ("Gen.G", "T1", 2, 1, 0.58, 3, "LCK 2026 Summer"),
+                ("G2 Esports", "Fnatic", 0, 2, 0.61, 3, "LEC 2026 Summer"),
+                ("JD Gaming", "Weibo Gaming", 3, 0, 0.72, 5, "LPL 2026 Summer"),
+            ])],
+        "liveCalibration": ledger.live_calibration(history, "lolcast", bins=5),
+        "divergence": ledger.divergence(history, "lolcast", 0.5540),
         "live": [{"source": s.source, "logLoss": s.log_loss, "brier": s.brier,
                   "accuracy": s.accuracy, "matches": s.common,
                   "coverage": round(s.coverage, 3)} for s in live_scores],

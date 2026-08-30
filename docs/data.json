@@ -1,10 +1,10 @@
 {
-  "generated": "2026-08-29T15:03:29.943339+00:00",
+  "generated": "2026-08-30T02:39:36.567896+00:00",
   "sample": true,
   "matches": [
     {
       "id": "sample-10",
-      "date": "2026-08-30T02:02:29.933092+00:00",
+      "date": "2026-08-30T13:38:36.557649+00:00",
       "event": "LEC 2026 Summer",
       "round": "Quarterfinals",
       "bestOf": 5,
@@ -44,7 +44,7 @@
     },
     {
       "id": "sample-0",
-      "date": "2026-08-30T19:39:13.707388+00:00",
+      "date": "2026-08-31T07:15:20.331945+00:00",
       "event": "LPL 2026 Summer",
       "round": "Group Stage",
       "bestOf": 3,
@@ -82,7 +82,7 @@
     },
     {
       "id": "sample-9",
-      "date": "2026-08-31T13:22:28.001445+00:00",
+      "date": "2026-09-01T00:58:34.626002+00:00",
       "event": "LTA North 2026 Split 3",
       "round": "Group Stage",
       "bestOf": 5,
@@ -122,7 +122,7 @@
     },
     {
       "id": "sample-4",
-      "date": "2026-08-31T13:42:21.574823+00:00",
+      "date": "2026-09-01T01:18:28.199380+00:00",
       "event": "LTA North 2026 Split 3",
       "round": "Quarterfinals",
       "bestOf": 3,
@@ -160,7 +160,7 @@
     },
     {
       "id": "sample-7",
-      "date": "2026-09-01T12:26:56.476473+00:00",
+      "date": "2026-09-02T00:03:03.101030+00:00",
       "event": "LPL 2026 Summer",
       "round": "Quarterfinals",
       "bestOf": 1,
@@ -196,7 +196,7 @@
     },
     {
       "id": "sample-5",
-      "date": "2026-09-02T11:06:59.438176+00:00",
+      "date": "2026-09-02T22:43:06.062733+00:00",
       "event": "LTA North 2026 Split 3",
       "round": "Quarterfinals",
       "bestOf": 3,
@@ -234,7 +234,7 @@
     },
     {
       "id": "sample-1",
-      "date": "2026-09-02T16:06:37.944831+00:00",
+      "date": "2026-09-03T03:42:44.569388+00:00",
       "event": "LCP 2026 Summer",
       "round": "Week 5",
       "bestOf": 3,
@@ -272,7 +272,7 @@
     },
     {
       "id": "sample-3",
-      "date": "2026-09-03T03:38:27.950066+00:00",
+      "date": "2026-09-03T15:14:34.574623+00:00",
       "event": "LEC 2026 Summer",
       "round": "Group Stage",
       "bestOf": 3,
@@ -310,7 +310,7 @@
     },
     {
       "id": "sample-2",
-      "date": "2026-09-03T05:15:02.440076+00:00",
+      "date": "2026-09-03T16:51:09.064633+00:00",
       "event": "LEC 2026 Summer",
       "round": "Week 4",
       "bestOf": 1,
@@ -346,7 +346,7 @@
     },
     {
       "id": "sample-6",
-      "date": "2026-09-03T09:06:34.457355+00:00",
+      "date": "2026-09-03T20:42:41.081912+00:00",
       "event": "LPL 2026 Summer",
       "round": "Week 4",
       "bestOf": 1,
@@ -382,7 +382,7 @@
     },
     {
       "id": "sample-8",
-      "date": "2026-09-03T13:04:24.305584+00:00",
+      "date": "2026-09-04T00:40:30.930141+00:00",
       "event": "LCK 2026 Summer",
       "round": "Group Stage",
       "bestOf": 1,
@@ -456,6 +456,84 @@
     "sidePairs": 4120,
     "repeatRate": 0.516,
     "repeatPairs": 4120
+  },
+  "recent": [
+    {
+      "id": "past-0",
+      "date": "2026-08-29T02:39:36.567896+00:00",
+      "event": "LCK 2026 Summer",
+      "bestOf": 3,
+      "team1": "Gen.G",
+      "team2": "T1",
+      "team1Score": 2,
+      "team2Score": 1,
+      "team1Won": 1,
+      "forecast": 0.58
+    },
+    {
+      "id": "past-1",
+      "date": "2026-08-28T02:39:36.567896+00:00",
+      "event": "LEC 2026 Summer",
+      "bestOf": 3,
+      "team1": "G2 Esports",
+      "team2": "Fnatic",
+      "team1Score": 0,
+      "team2Score": 2,
+      "team1Won": 0,
+      "forecast": 0.61
+    },
+    {
+      "id": "past-2",
+      "date": "2026-08-27T02:39:36.567896+00:00",
+      "event": "LPL 2026 Summer",
+      "bestOf": 5,
+      "team1": "JD Gaming",
+      "team2": "Weibo Gaming",
+      "team1Score": 3,
+      "team2Score": 0,
+      "team1Won": 1,
+      "forecast": 0.72
+    }
+  ],
+  "liveCalibration": [
+    {
+      "bucket": "0%-20%",
+      "games": 6,
+      "predicted": 0.14763333333333334,
+      "actual": 0.3333333333333333
+    },
+    {
+      "bucket": "20%-40%",
+      "games": 106,
+      "predicted": 0.3218339622641509,
+      "actual": 0.330188679245283
+    },
+    {
+      "bucket": "40%-60%",
+      "games": 138,
+      "predicted": 0.4970586956521739,
+      "actual": 0.5652173913043478
+    },
+    {
+      "bucket": "60%-80%",
+      "games": 120,
+      "predicted": 0.6932708333333333,
+      "actual": 0.7333333333333333
+    },
+    {
+      "bucket": "80%-100%",
+      "games": 50,
+      "predicted": 0.8491559999999998,
+      "actual": 0.82
+    }
+  ],
+  "divergence": {
+    "status": "worse",
+    "matches": 420,
+    "liveLogLoss": 0.6273,
+    "backtestLogLoss": 0.554,
+    "gap": 0.0733,
+    "bias": -0.0351
   },
   "live": [
     {

@@ -337,6 +337,86 @@ def fetch_recent_games(
                        now + timedelta(days=1), league_prefixes, max_pages=8)
 
 
+def fetch_player_rows(
+    api: str,
+    user_agent: str,
+    start: datetime,
+    end: datetime,
+    league_prefixes: list[str] | None = None,
+    page_size: int = 500,
+    max_pages: int = 60,
+    session=None,
+) -> pd.DataFrame:
+    """One row per player per game, for the roster audit.
+
+    Ten times the volume of the game table, which is exactly why this is
+    an audit tool run on a narrow window rather than part of the daily job.
+
+    Field names are tried from richest to barest. Cargo names the column it
+    rejects, so a wiki schema change degrades to fewer fields instead of
+    failing outright.
+    """
+    from .rosters import FIELD_SETS
+
+    session = session or get_session(user_agent)
+    where = (
+        f'ScoreboardPlayers.DateTime_UTC >= "{start:%Y-%m-%d %H:%M:%S}" '
+        f'AND ScoreboardPlayers.DateTime_UTC < "{end:%Y-%m-%d %H:%M:%S}"'
+    )
+    if league_prefixes:
+        terms = " OR ".join(
+            f'ScoreboardPlayers.OverviewPage LIKE "{p}/%"' for p in league_prefixes
+        )
+        where += f" AND ({terms})"
+
+    last_error = None
+    for fields in FIELD_SETS:
+        try:
+            rows = _page_players(session, api, fields, where, page_size, max_pages)
+        except RuntimeError as exc:
+            last_error = exc
+            print(f"  field set {fields} rejected, trying a smaller one")
+            continue
+        print(f"  using fields: {', '.join(fields)}")
+        return rows
+
+    raise RuntimeError(f"No usable field set for ScoreboardPlayers: {last_error}")
+
+
+def _page_players(session, api, fields, where, page_size, max_pages) -> pd.DataFrame:
+    rows, offset = [], 0
+    for page in range(max_pages):
+        payload = api_get(session, api, {
+            "action": "cargoquery",
+            "format": "json",
+            "tables": "ScoreboardPlayers",
+            "fields": ",".join(f"ScoreboardPlayers.{f}" for f in fields),
+            "where": where,
+            "order_by": "ScoreboardPlayers.DateTime_UTC ASC",
+            "limit": page_size,
+            "offset": offset,
+        })
+        batch = payload.get("cargoquery", [])
+        for item in batch:
+            row = item.get("title", {})
+            rows.append({
+                "player": row.get("Link"),
+                "team": row.get("Team"),
+                "gameid": row.get("GameId"),
+                "date": row.get("DateTime UTC") or row.get("DateTime_UTC"),
+                "event": row.get("OverviewPage"),
+                "role": row.get("IngameRole") or row.get("Role"),
+            })
+        if len(batch) < page_size:
+            break
+        offset += page_size
+        print(f"    {len(rows):,} player rows so far")
+        time.sleep(2 if logged_in("") else 61)
+
+    return pd.DataFrame(rows, columns=["player", "team", "gameid", "date",
+                                       "event", "role"])
+
+
 def logged_in(user_agent: str) -> bool:
     """True when wiki credentials are configured."""
     return bool(os.environ.get("WIKI_USERNAME") and os.environ.get("WIKI_PASSWORD"))

@@ -125,8 +125,24 @@ self_calibration:
   max_temperature: 3.0
   min_lead_hours: 1.0
 
+# ---------------------------------------------------------------
+#  Roster audit: a one-off measurement, not part of the daily run
+# ---------------------------------------------------------------
+audit:
+  years: 2              # narrow window; player rows are 10x the volume
+  recent_games: 3       # how many games after a change count as "recent"
+  max_pages: 60
+  # Defaults to leagues.leaguepedia_prefixes. Narrow it to go faster.
+  leaguepedia_prefixes:
+    - "LCK"
+    - "LEC"
+    - "LPL"
+
 dashboard:
   horizon_days: 7
+  # How far back finished matches stay available. A followed match older
+  # than this can no longer show its result, so keep it generous.
+  results_days: 45
   title: "lolcast"
   timezone: "local"       # rendered client-side
   refresh:
