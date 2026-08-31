@@ -115,16 +115,51 @@ jobs:
           python -m lolcast backtest --by-league
         continue-on-error: true
 
-      - name: Commit the ledger
+      # If the repository changes while a run is in flight -- editing a
+      # file in the web UI is enough -- the push is rejected. Rebasing a
+      # CSV of appended rows invites conflicts for no benefit, and only
+      # this workflow writes these files, so on a clash our copy is simply
+      # the right one. Rebuild the commit on top of whatever is there now.
+      - name: Commit data
         run: |
           git config user.name  "lolcast bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/ledger.csv data/history.csv
-          if git diff --staged --quiet; then
-            echo "No ledger changes."
-          else
+
+          # A hard reset would also revert the freshly built dashboard, so
+          # everything this run produced is set aside first.
+          mkdir -p /tmp/lolcast-keep/data /tmp/lolcast-keep/docs
+          cp -f data/ledger.csv  /tmp/lolcast-keep/data/ 2>/dev/null || true
+          cp -f data/history.csv /tmp/lolcast-keep/data/ 2>/dev/null || true
+          cp -f docs/data.json   /tmp/lolcast-keep/docs/ 2>/dev/null || true
+
+          pushed=0
+          for attempt in 1 2 3; do
+            git fetch origin "$GITHUB_REF_NAME"
+            git reset --hard "origin/$GITHUB_REF_NAME"
+            cp -f /tmp/lolcast-keep/data/*.csv data/  2>/dev/null || true
+            cp -f /tmp/lolcast-keep/docs/*.json docs/ 2>/dev/null || true
+
+            git add data/ledger.csv data/history.csv 2>/dev/null || true
+            if git diff --staged --quiet; then
+              echo "No data changes to commit."
+              pushed=1
+              break
+            fi
             git commit -m "Data: forecasts, results and history for $(date -u +%Y-%m-%d)"
-            git push
+            if git push; then
+              echo "Pushed on attempt $attempt."
+              pushed=1
+              break
+            fi
+            echo "Push rejected on attempt $attempt; the repository moved. Retrying."
+            sleep 10
+          done
+
+          if [ "$pushed" != "1" ]; then
+            echo "::warning::Could not push the ledger after 3 attempts."
+            echo "::warning::The dashboard will still deploy. Forecasts from"
+            echo "::warning::this run were not recorded; the next run will"
+            echo "::warning::snapshot them again."
           fi
 
       - uses: actions/upload-pages-artifact@v3
