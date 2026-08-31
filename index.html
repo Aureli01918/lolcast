@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B1519">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
+<!-- iOS ignores the manifest for home-screen icons and reads this instead. -->
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="lolcast">
+<title>lolcast — upcoming LoL forecasts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=Chivo+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0B1519; --panel:#122129; --panel-2:#182C35; --line:#22404B;
+  --blue:#4FA8D8; --red:#D8604F; --gold:#C9A227;
+  --text:#DEE9EC; --muted:#7B959E;
+  --radius:10px; --pad:16px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--ink); color:var(--text);
+  font-family:'Archivo',system-ui,sans-serif; font-size:15px; line-height:1.45;
+  padding-bottom:64px; -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:680px;margin:0 auto;padding:0 var(--pad)}
+
+/* ---- header ---- */
+.masthead{border-bottom:1px solid var(--line);padding:22px 0 14px;margin-bottom:18px}
+.wordmark{font-size:26px;font-weight:800;letter-spacing:-.03em}
+.wordmark span{color:var(--gold)}
+.tagline{color:var(--muted);font-size:13px;margin-top:2px}
+
+.health{
+  display:flex;gap:2px;margin-top:16px;
+  border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;
+}
+.health div{flex:1;background:var(--panel);padding:9px 10px}
+.health dt{
+  font-size:10px;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--muted);font-weight:600;
+}
+.health dd{font-family:'Chivo Mono',monospace;font-size:16px;margin-top:1px}
+
+.freshness{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin-top:10px;font-family:'Chivo Mono',monospace;font-size:11px;
+  color:var(--muted);
+}
+button.refresh{
+  font-family:'Archivo',sans-serif;font-size:12px;font-weight:600;
+  background:var(--panel-2);color:var(--text);
+  border:1px solid var(--line);border-radius:6px;
+  padding:6px 12px;cursor:pointer;
+}
+button.refresh:hover:not(:disabled){border-color:var(--gold);color:var(--gold)}
+button.refresh:disabled{opacity:.5;cursor:default}
+button.refresh:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+.key{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;font-size:11px;color:var(--muted)}
+.key span{display:inline-flex;align-items:center;gap:5px}
+.key i{width:9px;height:3px;border-radius:1px;display:inline-block}
+
+/* ---- day grouping ---- */
+.daybar{display:flex;align-items:baseline;gap:10px;margin:26px 0 10px}
+.daybar h2{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.daybar hr{flex:1;border:0;border-top:1px solid var(--line)}
+.daybar .count{font-family:'Chivo Mono',monospace;font-size:12px;color:var(--muted)}
+
+/* ---- match card ---- */
+.match{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:13px 14px 14px;margin-bottom:10px;
+}
+.meta{
+  display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  font-size:11px;color:var(--muted);margin-bottom:11px;
+}
+.meta .event{
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  text-transform:uppercase;letter-spacing:.06em;font-weight:600;
+}
+.meta .when{font-family:'Chivo Mono',monospace;flex-shrink:0}
+.star{
+  flex-shrink:0;background:none;border:0;padding:0 0 0 2px;cursor:pointer;
+  color:var(--muted);font-size:15px;line-height:1;
+}
+.star:hover{color:var(--gold)}
+.star[aria-pressed="true"]{color:var(--gold)}
+.star:focus-visible{outline:2px solid var(--gold);outline-offset:3px;border-radius:3px}
+
+.following{border:1px solid var(--gold);border-radius:var(--radius);padding:12px;margin-bottom:8px}
+.following > h2{
+  font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--gold);margin-bottom:10px;
+}
+.following .match{background:var(--panel-2)}
+.following .empty-note{font-size:12px;color:var(--muted)}
+
+.result{
+  background:var(--panel-2);border:1px solid var(--line);
+  border-radius:var(--radius);padding:12px 13px;margin-bottom:10px;
+}
+.result .score{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin-top:6px;
+}
+.result .side{min-width:0;font-size:15px;font-weight:600;letter-spacing:-.01em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.result .side.lost{color:var(--muted);font-weight:400}
+.result .nums{
+  font-family:'Chivo Mono',monospace;font-size:20px;font-weight:600;flex-shrink:0;
+}
+.result .verdict{
+  margin-top:8px;padding-top:8px;border-top:1px solid var(--line);
+  font-family:'Chivo Mono',monospace;font-size:11px;color:var(--muted);
+  display:flex;justify-content:space-between;gap:10px;
+}
+.result .hit{color:#5FD3A6}
+.result .miss{color:var(--red)}
+.result .gone{font-size:12px;color:var(--muted)}
+.meta .bo{
+  flex-shrink:0;border:1px solid var(--line);border-radius:3px;
+  padding:1px 5px;font-family:'Chivo Mono',monospace;
+}
+.teams{display:flex;justify-content:space-between;gap:12px;margin-bottom:7px}
+.team{min-width:0;display:flex;flex-direction:column}
+.team.r{align-items:flex-end;text-align:right}
+.team .name{
+  font-size:16px;font-weight:600;letter-spacing:-.01em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.team.b .name{color:var(--blue)}
+.team.r .name{color:var(--red)}
+.team .pct{font-family:'Chivo Mono',monospace;font-size:22px;font-weight:600;line-height:1.1}
+.team .sub{font-family:'Chivo Mono',monospace;font-size:11px;color:var(--muted)}
+
+/* ---- signature: tug-of-war bar ---- */
+.bar{position:relative;height:12px;border-radius:3px;overflow:hidden;background:var(--red)}
+.bar .fill{
+  position:absolute;inset:0 auto 0 0;background:var(--blue);width:50%;
+  transition:width .7s cubic-bezier(.22,.9,.3,1);
+}
+.bar .band{
+  position:absolute;top:0;bottom:0;
+  background:repeating-linear-gradient(-45deg,rgba(11,21,25,.55) 0 3px,rgba(11,21,25,0) 3px 6px);
+  transition:left .7s cubic-bezier(.22,.9,.3,1), width .7s;
+}
+.bar .split{
+  position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--text);
+  transition:left .7s cubic-bezier(.22,.9,.3,1);
+}
+.ticks{position:relative;height:6px;margin-top:3px}
+.ticks i{
+  position:absolute;top:0;width:2px;height:6px;
+  transition:left .7s cubic-bezier(.22,.9,.3,1);
+}
+@media (prefers-reduced-motion:reduce){
+  .bar .fill,.bar .band,.bar .split,.ticks i{transition:none}
+}
+
+.others{
+  display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;
+  font-family:'Chivo Mono',monospace;font-size:11px;
+}
+.others b{font-weight:600}
+.others .q{
+  display:inline-flex;align-items:center;gap:5px;
+  background:var(--panel-2);border:1px solid var(--line);border-radius:3px;
+  padding:2px 7px;color:var(--muted);
+}
+.others .q i{width:7px;height:7px;border-radius:2px;flex-shrink:0}
+.others .edge{color:var(--text)}
+.others .none{color:var(--muted);opacity:.7;padding:2px 0}
+
+/* ---- sweep line and the tap-to-open breakdown ---- */
+.sweepline{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin-top:9px;padding-top:9px;border-top:1px solid var(--line);
+  font-family:'Chivo Mono',monospace;font-size:12px;color:var(--muted);
+  width:100%;background:none;border-left:0;border-right:0;border-bottom:0;
+  cursor:pointer;text-align:left;font-weight:400;
+}
+.sweepline:hover{color:var(--text)}
+.sweepline:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.sweepline .vals{color:var(--text)}
+.sweepline .vals b{font-weight:600}
+.sweepline .vals .b1{color:var(--blue)}
+.sweepline .vals .r1{color:var(--red)}
+.sweepline .chev{transition:transform .2s}
+.match.open .sweepline .chev{transform:rotate(90deg)}
+
+.breakdown{display:none;margin-top:10px}
+.match.open .breakdown{display:block}
+.breakdown .row{
+  display:grid;grid-template-columns:52px 1fr 44px;align-items:center;
+  gap:8px;margin-bottom:5px;
+  font-family:'Chivo Mono',monospace;font-size:11px;
+}
+.breakdown .score{color:var(--muted)}
+.breakdown .track{height:7px;background:var(--panel-2);border-radius:2px;overflow:hidden}
+.breakdown .track span{display:block;height:100%;border-radius:2px}
+.breakdown .val{text-align:right}
+.breakdown .note{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5}
+
+/* ---- panels ---- */
+.panel{
+  background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--radius);padding:14px;margin-top:12px;
+}
+.panel h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{
+  font-family:'Chivo Mono',monospace;font-size:11px;background:var(--panel-2);
+  border:1px solid var(--line);border-radius:3px;padding:2px 7px;color:var(--muted);
+}
+table{width:100%;border-collapse:collapse;font-family:'Chivo Mono',monospace;font-size:12px}
+th{
+  text-align:right;font-weight:600;color:var(--muted);font-size:10px;
+  text-transform:uppercase;letter-spacing:.06em;padding-bottom:5px;
+}
+th:first-child,td:first-child{text-align:left}
+td{text-align:right;padding:3px 0;border-top:1px solid var(--line)}
+tr.mine td{color:var(--gold)}
+.legend{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.6}
+.legend b{color:var(--text);font-weight:600}
+.stamp{font-family:'Chivo Mono',monospace;font-size:11px;color:var(--muted);margin-top:20px;text-align:center}
+.empty{
+  border:1px dashed var(--line);border-radius:var(--radius);
+  padding:28px 18px;text-align:center;color:var(--muted);
+}
+.empty b{display:block;color:var(--text);font-size:16px;margin-bottom:5px}
+code{
+  font-family:'Chivo Mono',monospace;background:var(--panel-2);
+  padding:1px 5px;border-radius:3px;color:var(--text);
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="masthead">
+  <div class="wordmark">lol<span>cast</span></div>
+  <p class="tagline">Upcoming pro matches, priced against the market.</p>
+  <dl class="health" id="health"></dl>
+  <div class="freshness">
+    <span id="freshness">Loading…</span>
+    <button class="refresh" id="refresh" disabled>Update now</button>
+  </div>
+  <div class="key" id="key"></div>
+</header>
+
+<section class="following" id="following" hidden></section>
+<main id="matches"></main>
+
+<section class="panel" id="livePanel" hidden>
+  <h3>Live accuracy</h3>
+  <table id="liveTable"></table>
+  <p class="legend">
+    Scored on real forecasts recorded before each match, never rewritten
+    afterwards. Everyone is compared on the matches <b>all</b> of them
+    priced, so a source that only covers easy games can't look sharp by
+    picking its spots — its <b>reach</b> column shows how much it skipped.
+  </p>
+</section>
+
+<section class="panel" id="modelPanel" hidden>
+  <h3>Model</h3>
+  <div class="chips" id="featureChips"></div>
+  <table id="calibration"></table>
+  <p class="legend" id="calNote"></p>
+  <div id="liveCalWrap" hidden>
+    <h3 style="margin-top:16px">Live calibration</h3>
+    <table id="liveCal"></table>
+    <p class="legend" id="divergence"></p>
+  </div>
+  <p class="legend" id="calStatus"></p>
+  <p class="legend">
+    <b>Reading a bar.</b> The split is the forecast. Coloured ticks are the
+    other sources. The hatched cuff widens when one side has little recent
+    history, so treat those loosely.
+  </p>
+</section>
+
+<p class="stamp" id="stamp"></p>
+</div>
+
+<script>
+const BAND = { low: 0.10, medium: 0.06, high: 0.03 };
+const ELO_COLOUR = '#C9A227';
+let DATA = null;
+
+// Flags live in this browser only. That is deliberate: it needs no
+// backend and no account. The trade-off is that your phone and laptop
+// keep separate lists.
+const FLAGS_KEY = 'lolcast:following';
+function loadFlags() {
+  try { return new Set(JSON.parse(localStorage.getItem(FLAGS_KEY) || '[]')); }
+  catch { return new Set(); }        // private mode, or corrupted value
+}
+function saveFlags(set) {
+  try { localStorage.setItem(FLAGS_KEY, JSON.stringify([...set])); }
+  catch { /* storage unavailable; flags last for this session only */ }
+}
+let FLAGS = loadFlags();
+
+function toggleFlag(id) {
+  FLAGS.has(id) ? FLAGS.delete(id) : FLAGS.add(id);
+  saveFlags(FLAGS);
+  render(DATA);
+}
+
+// Never show 0% or 100%. The model is not certain and should not look it.
+const fmtPct = p => {
+  const v = Math.round(p * 100);
+  if (v >= 100) return '>99%';
+  if (v <= 0) return '<1%';
+  return v + '%';
+};
+// Coverage is a plain proportion, not a forecast: 100% really does mean
+// "priced every match", so it must not be clamped like a probability.
+const fmtShare = v => Math.round(v * 100) + '%';
+const ago = iso => {
+  const mins = Math.round((Date.now() - new Date(iso)) / 60000);
+  if (mins < 2) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  return hrs < 48 ? `${hrs}h ago` : `${Math.round(hrs / 24)}d ago`;
+};
+
+function dayLabel(d) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const that = new Date(d); that.setHours(0,0,0,0);
+  const days = Math.round((that - today) / 86400000);
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Tomorrow';
+  return that.toLocaleDateString(undefined, { weekday:'long', month:'short', day:'numeric' });
+}
+
+/* ---------- match card ---------- */
+
+function matchCard(m, sources) {
+  const p = m.seriesProb;
+  const band = BAND[m.confidence] ?? 0.06;
+  const lo = Math.max(0, p - band), hi = Math.min(1, p + band);
+  const time = new Date(m.date).toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+  const round = m.round ? ' · ' + m.round : '';
+
+  // Every source that priced this match, plus our own ratings baseline.
+  const quotes = [{ label: 'Ratings only', colour: ELO_COLOUR, p: m.eloProb }];
+  for (const s of sources) {
+    const v = m.sources?.[s.name];
+    if (v != null) quotes.push({ label: s.label, colour: s.colour, p: v, external: true });
+  }
+
+  const chips = quotes.map(q => {
+    const edge = Math.round((p - q.p) * 100);
+    const sign = edge > 0 ? '+' : '';
+    const delta = q.external && edge !== 0
+      ? ` <b class="edge">${sign}${edge}</b>` : '';
+    return `<span class="q"><i style="background:${q.colour}"></i>${q.label} ${fmtPct(q.p)}${delta}</span>`;
+  }).join('');
+
+  const noMarket = quotes.every(q => !q.external)
+    ? '<span class="none">no market price</span>' : '';
+
+  // Sweep summary plus the full scoreline breakdown, collapsed by default.
+  let sweepBlock = '';
+  if (m.bestOf > 1 && m.scorelines) {
+    const need = Math.floor(m.bestOf / 2) + 1;
+    const s1 = m.sweep?.team1 ?? 0, s2 = m.sweep?.team2 ?? 0;
+    const rows = Object.entries(m.scorelines).map(([score, prob]) => {
+      const [a, b] = score.split('-').map(Number);
+      const colour = a > b ? 'var(--blue)' : 'var(--red)';
+      const label = a > b ? m.blue.name : m.red.name;
+      return `<div class="row" title="${label} ${score}">
+        <span class="score">${score}</span>
+        <span class="track"><span style="width:${(prob * 100).toFixed(1)}%;background:${colour}"></span></span>
+        <span class="val">${fmtPct(prob)}</span></div>`;
+    }).join('');
+
+    sweepBlock = `
+      <button class="sweepline" aria-expanded="false">
+        <span>${need}-0 sweep</span>
+        <span class="vals"><b class="b1">${fmtPct(s1)}</b> · <b class="r1">${fmtPct(s2)}</b>
+          <span class="chev">›</span></span>
+      </button>
+      <div class="breakdown">
+        ${rows}
+        <p class="note">Scorelines read left team first. A sweep is less
+        likely than squaring the per-game chance, because winning a game
+        hands the opponent blue side for the next one.</p>
+      </div>`;
+  }
+
+  const el = document.createElement('article');
+  el.className = 'match';
+  el.innerHTML = `
+    <div class="meta">
+      <span class="event">${m.event ?? 'Match'}${round}</span>
+      <span class="bo">Bo${m.bestOf}</span>
+      <span class="when">${time}</span>
+      <button class="star" aria-pressed="${FLAGS.has(m.id) ? 'true' : 'false'}"
+        aria-label="${FLAGS.has(m.id) ? 'Stop following' : 'Follow this match'}"
+        title="${FLAGS.has(m.id) ? 'Stop following' : 'Follow this match'}"
+      >${FLAGS.has(m.id) ? '★' : '☆'}</button>
+    </div>
+    <div class="teams">
+      <div class="team b">
+        <span class="name">${m.blue.name}</span>
+        <span class="pct">${fmtPct(p)}</span>
+        <span class="sub">${m.blue.elo} elo · ${m.blue.games}g</span>
+      </div>
+      <div class="team r">
+        <span class="name">${m.red.name}</span>
+        <span class="pct">${fmtPct(1 - p)}</span>
+        <span class="sub">${m.red.elo} elo · ${m.red.games}g</span>
+      </div>
+    </div>
+    <div class="bar"><div class="fill"></div><div class="band"></div><div class="split"></div></div>
+    <div class="ticks">${quotes.map(q =>
+      `<i data-p="${q.p}" style="background:${q.colour}"></i>`).join('')}</div>
+    <div class="others">${chips}${noMarket}</div>
+    ${sweepBlock}`;
+
+  el.querySelector('.star').addEventListener('click', () => toggleFlag(m.id));
+
+  const toggle = el.querySelector('.sweepline');
+  if (toggle) {
+    toggle.addEventListener('click', () => {
+      const open = el.classList.toggle('open');
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  }
+
+  requestAnimationFrame(() => {
+    el.querySelector('.fill').style.width = (p * 100) + '%';
+    el.querySelector('.split').style.left = (p * 100) + '%';
+    const bandEl = el.querySelector('.band');
+    bandEl.style.left = (lo * 100) + '%';
+    bandEl.style.width = ((hi - lo) * 100) + '%';
+    el.querySelectorAll('.ticks i').forEach(tick => {
+      tick.style.left = (parseFloat(tick.dataset.p) * 100) + '%';
+    });
+  });
+  return el;
+}
+
+/* ---------- panels ---------- */
+
+function renderHealth(model) {
+  const cells = [
+    ['Accuracy', fmtPct(model.accuracy)],
+    ['Log loss', model.logLoss.toFixed(3)],
+    ['Skill', (model.skill >= 0 ? '+' : '') + fmtPct(model.skill)],
+  ];
+  document.getElementById('health').innerHTML =
+    cells.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+}
+
+function renderKey(sources) {
+  const items = [{ label: 'Ratings only', colour: ELO_COLOUR }, ...sources];
+  document.getElementById('key').innerHTML = items.map(s =>
+    `<span><i style="background:${s.colour}"></i>${s.label}</span>`).join('');
+}
+
+function renderLive(live, selfName) {
+  if (!live?.length) return;
+  const rows = live.map(r => `
+    <tr class="${r.source === selfName ? 'mine' : ''}">
+      <td>${r.source}</td><td>${r.matches}</td>
+      <td>${r.logLoss != null ? r.logLoss.toFixed(3) : '—'}</td>
+      <td>${r.accuracy != null ? fmtPct(r.accuracy) : '—'}</td>
+      <td>${fmtShare(r.coverage)}</td>
+    </tr>`).join('');
+  document.getElementById('liveTable').innerHTML = `
+    <thead><tr><th>Source</th><th>Games</th><th>Log loss</th>
+    <th>Accuracy</th><th>Reach</th></tr></thead><tbody>${rows}</tbody>`;
+  document.getElementById('livePanel').hidden = false;
+}
+
+function renderSweep(data) {
+  const rows = data.sweepLive || [];
+  const host = document.getElementById('sweepNote');
+  if (!host) return;
+  const s = data.series || {};
+  const bits = [];
+  if (s.sidePairs) {
+    bits.push(`Measured from ${s.sidePairs.toLocaleString()} game pairs in your
+      history: the previous game's loser starts on blue
+      ${fmtShare(s.sideChoiceRate)} of the time, and the previous winner takes
+      the next game ${fmtShare(s.repeatRate)} of the time (50% would mean no
+      momentum at all).`);
+  }
+  if (rows.length) {
+    const scored = rows.filter(r => r.logLoss != null)
+      .map(r => `${r.source} ${r.logLoss.toFixed(3)}`).join(', ');
+    if (scored) {
+      bits.push(`Sweep forecasts are scored separately (${scored}) because a
+        model can call every winner correctly and still misjudge how often
+        series end 2-0.`);
+    }
+  }
+  host.innerHTML = bits.join(' ');
+}
+
+function renderModel(data) {
+  const model = data.model;
+  document.getElementById('featureChips').innerHTML =
+    model.features.map(f => `<span class="chip">${f}</span>`).join('');
+
+  const rows = model.calibration.map(r => `
+    <tr><td>${r.bucket}</td><td>${r.games}</td>
+    <td>${fmtPct(r.predicted)}</td><td>${fmtPct(r.actual)}</td></tr>`).join('');
+  document.getElementById('calibration').innerHTML = `
+    <thead><tr><th>Said</th><th>Games</th><th>Predicted</th><th>Happened</th></tr></thead>
+    <tbody>${rows}</tbody>`;
+
+  document.getElementById('calNote').innerHTML =
+    `<b>Backtest.</b> The model replaying past games it wasn't trained on.
+     Compare the last two columns: if it said 70% and 70% happened, the
+     number means what it says.`;
+
+  // Live calibration: the same table, but from forecasts published before
+  // anyone knew the result. Harder test, and the one that counts.
+  const liveRows = data.liveCalibration || [];
+  if (liveRows.length) {
+    document.getElementById('liveCal').innerHTML = `
+      <thead><tr><th>Said</th><th>Games</th><th>Predicted</th><th>Happened</th></tr></thead>
+      <tbody>${liveRows.map(r => `<tr><td>${r.bucket}</td><td>${r.games}</td>
+        <td>${fmtPct(r.predicted)}</td><td>${fmtPct(r.actual)}</td></tr>`).join('')}</tbody>`;
+
+    const d = data.divergence || {};
+    const note = {
+      waiting: `Only ${d.matches ?? 0} graded forecasts so far. This table
+        becomes meaningful past ${d.needed ?? 100}; below that the swings are
+        mostly luck.`,
+      consistent: `<b>Holding up.</b> Live log loss ${d.liveLogLoss} against
+        ${d.backtestLogLoss} in the backtest. The model performs in the wild
+        about as well as history promised.`,
+      worse: `<b>Worse than the backtest</b> — live log loss ${d.liveLogLoss}
+        against ${d.backtestLogLoss}, a gap of ${d.gap}. That pattern usually
+        means overfitting, and the fix is fewer variables rather than more.
+        Run the ablation before adding anything.`,
+      better: `Live log loss ${d.liveLogLoss} is better than the backtest's
+        ${d.backtestLogLoss}. Pleasant, but usually means recent matches were
+        easier than average rather than that the model improved.`,
+    }[d.status] || '';
+    document.getElementById('divergence').innerHTML = note;
+    document.getElementById('liveCalWrap').hidden = false;
+  }
+
+  const cal = data.calibration;
+  document.getElementById('calStatus').innerHTML = cal?.active
+    ? `<b>Self-correction on.</b> Confidence is being adjusted from
+       ${cal.matches} of its own graded forecasts (factor
+       ${cal.temperature}).`
+    : `<b>Self-correction off:</b> ${cal?.reason ?? 'no data'}. It switches
+       on once enough real forecasts have been graded.`;
+  document.getElementById('modelPanel').hidden = false;
+}
+
+function resultCard(r) {
+  const t1won = r.team1Won === 1;
+  const known = r.team1Score != null && r.team2Score != null;
+  const score = known ? `${r.team1Score}\u2013${r.team2Score}`
+                      : (t1won ? 'won' : 'lost');
+  const called = (r.forecast > 0.5) === t1won;
+  const shown = t1won ? r.forecast : 1 - r.forecast;
+  const when = new Date(r.date).toLocaleDateString(undefined,
+    { month: 'short', day: 'numeric' });
+
+  const el = document.createElement('article');
+  el.className = 'result';
+  el.innerHTML = `
+    <div class="meta">
+      <span class="event">${r.event || 'Match'}</span>
+      ${r.bestOf ? `<span class="bo">Bo${r.bestOf}</span>` : ''}
+      <span class="when">${when}</span>
+      <button class="star" aria-pressed="true" aria-label="Stop following"
+        title="Stop following">\u2605</button>
+    </div>
+    <div class="score">
+      <span class="side ${t1won ? '' : 'lost'}">${r.team1}</span>
+      <span class="nums">${score}</span>
+      <span class="side ${t1won ? 'lost' : ''}">${r.team2}</span>
+    </div>
+    <div class="verdict">
+      <span>we said ${fmtPct(shown)} ${t1won ? r.team1 : r.team2}</span>
+      <span class="${called ? 'hit' : 'miss'}">${called ? 'called it' : 'missed'}</span>
+    </div>`;
+  el.querySelector('.star').addEventListener('click', () => toggleFlag(r.id));
+  return el;
+}
+
+function renderFollowing(data, sources) {
+  const host = document.getElementById('following');
+  host.innerHTML = '';
+  if (!FLAGS.size) { host.hidden = true; return; }
+
+  const upcoming = (data.matches || []).filter(m => FLAGS.has(m.id));
+  const played = (data.recent || []).filter(r => FLAGS.has(String(r.id)));
+  const seen = new Set([...upcoming.map(m => m.id), ...played.map(r => String(r.id))]);
+  // A followed match older than the results window is no longer in the
+  // feed. Say so rather than dropping it silently, and let it be cleared.
+  const missing = [...FLAGS].filter(id => !seen.has(id));
+
+  host.hidden = false;
+  const heading = document.createElement('h2');
+  heading.textContent = `Following (${FLAGS.size})`;
+  host.appendChild(heading);
+
+  // Upcoming first: what you are waiting on matters more than what already
+  // happened. Results sit below, newest first.
+  upcoming.forEach(m => host.appendChild(matchCard(m, sources)));
+  played.forEach(r => host.appendChild(resultCard(r)));
+
+  if (missing.length) {
+    const note = document.createElement('p');
+    note.className = 'gone';
+    const plural = missing.length === 1 ? 'match is' : 'matches are';
+    note.innerHTML = `${missing.length} followed ${plural} older than the
+      results window, so the result is no longer available.
+      <button class="star" style="font-size:12px;color:var(--gold)"
+      id="clearGone">Clear</button>`;
+    host.appendChild(note);
+    note.querySelector('#clearGone').addEventListener('click', () => {
+      missing.forEach(id => FLAGS.delete(id));
+      saveFlags(FLAGS);
+      render(DATA);
+    });
+  }
+}
+
+function renderMatches(matches, sources) {
+  const host = document.getElementById('matches');
+  host.innerHTML = '';
+  // Followed matches are shown above; don't repeat them here.
+  matches = matches.filter(m => !FLAGS.has(m.id));
+  if (!matches.length) {
+    host.innerHTML = `<div class="empty"><b>No matches scheduled</b>
+      Nothing in the next few days. Check back after the next schedule drop.</div>`;
+    return;
+  }
+  let currentDay = null;
+  for (const m of matches) {
+    const label = dayLabel(m.date);
+    if (label !== currentDay) {
+      currentDay = label;
+      const n = matches.filter(x => dayLabel(x.date) === label).length;
+      const noun = n === 1 ? 'match' : 'matches';
+      const bar = document.createElement('div');
+      bar.className = 'daybar';
+      bar.innerHTML = `<h2>${label}</h2><hr><span class="count">${n} ${noun}</span>`;
+      host.appendChild(bar);
+    }
+    host.appendChild(matchCard(m, sources));
+  }
+}
+
+/* ---------- the Update button ---------- */
+// Two modes. With a proxy URL configured, this really does kick off a
+// rebuild and wait for it. Without one, it opens the page where you can
+// start the run yourself — no access token has to live in this page.
+
+function setupRefresh(data) {
+  const btn = document.getElementById('refresh');
+  const cfg = data.refresh || {};
+  const stamp = document.getElementById('freshness');
+  stamp.textContent = 'Updated ' + ago(data.generated);
+
+  if (cfg.proxyUrl) {
+    btn.disabled = false;
+    btn.onclick = () => triggerRebuild(cfg.proxyUrl, data.generated, btn, stamp);
+  } else if (cfg.actionsUrl) {
+    btn.disabled = false;
+    btn.textContent = 'Update now ↗';
+    btn.onclick = () => window.open(cfg.actionsUrl, '_blank', 'noopener');
+  } else {
+    btn.disabled = true;
+    btn.title = 'Set dashboard.refresh in config.yaml to enable';
+  }
+}
+
+async function triggerRebuild(proxyUrl, previous, btn, stamp) {
+  btn.disabled = true;
+  btn.textContent = 'Starting…';
+  try {
+    const res = await fetch(proxyUrl, { method: 'POST' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+  } catch (err) {
+    btn.textContent = 'Update failed';
+    stamp.textContent = "Couldn't start a rebuild. Check the proxy URL.";
+    setTimeout(() => { btn.textContent = 'Update now'; btn.disabled = false; }, 4000);
+    return;
+  }
+
+  btn.textContent = 'Building…';
+  // A full rebuild takes a couple of minutes. Poll until the timestamp moves.
+  const deadline = Date.now() + 6 * 60 * 1000;
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 15000));
+    stamp.textContent = 'Rebuilding — this takes a few minutes';
+    try {
+      const fresh = await (await fetch('data.json?' + Date.now())).json();
+      if (fresh.generated !== previous) {
+        DATA = fresh;
+        render(fresh);
+        return;
+      }
+    } catch { /* keep waiting */ }
+  }
+  btn.textContent = 'Still building';
+  btn.disabled = false;
+  stamp.textContent = 'Taking longer than usual. Reload in a minute.';
+}
+
+/* ---------- boot ---------- */
+
+function render(data) {
+  DATA = data;
+  const sources = (data.sources || []).filter(s => !s.error);
+  renderHealth(data.model);
+  renderKey(sources);
+  renderFollowing(data, sources);
+  renderMatches(data.matches, sources);
+  renderLive(data.live, data.selfLabels?.model);
+  renderSweep(data);
+  renderModel(data);
+  setupRefresh(data);
+
+  const notes = [];
+  const failed = (data.sources || []).filter(s => s.error).map(s => s.label);
+  if (failed.length) notes.push(`${failed.join(', ')} unavailable`);
+  if (data.unmatchedTeams?.length) {
+    notes.push(`${data.unmatchedTeams.length} unrated team(s) skipped`);
+  }
+  document.getElementById('stamp').textContent =
+    new Date(data.generated).toLocaleString() + (notes.length ? ' · ' + notes.join(' · ') : '');
+}
+
+fetch('data.json?' + Date.now())
+  .then(r => r.ok ? r.json() : Promise.reject(r.status))
+  .then(render)
+  .catch(() => {
+    document.getElementById('freshness').textContent = 'No data';
+    document.getElementById('matches').innerHTML = `<div class="empty">
+      <b>No forecast data yet</b>
+      Run <code>python -m lolcast predict</code> to generate
+      <code>docs/data.json</code>.</div>`;
+  });
+</script>
+</body>
+</html>
